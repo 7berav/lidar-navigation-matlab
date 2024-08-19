@@ -17,7 +17,12 @@ function output = calculateFourthOrder(inputMatrix)
     y3z = (y.^3).*z;
     z3x = (z.^3).*x;
     z3y = (z.^3).*y;
+
+    x2yz = (x.^2).*y.*z;
+    xy2z = (y.^2).*z.*x;
+    xyz2 = (z.^2).*x.*y;
+    
     
     % 결과 행렬을 생성
-    output = [x4 y4 z4 x2y2 x2z2 y2z2 x3y x3z y3x y3z z3x z3y];
+    output = [x4 y4 z4 x2y2 x2z2 y2z2 x3y x3z y3x y3z z3x z3y x2yz xy2z xyz2];
 end
