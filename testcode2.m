@@ -22,6 +22,9 @@ scatter3(PP5(:,1),PP5(:,2),PP5(:,3),'black');
 scatter3(PP6(:,1),PP6(:,2),PP6(:,3),'y');
 hold off
 %}
+
+%%
+
 Ans1=regressionFourthOrder([PP2;PP4])
 Ans2=regressionFourthOrder([PP2])
 Ans3=regressionFourthOrder([PP])
@@ -32,10 +35,14 @@ g=@(x,y,z) Ans1(1)*x.^4+  Ans1(2)*y.^4+    Ans1(3)*z.^4+    Ans1(4)*x.^2*y.^2   
    +Ans1(7)*(x.^3).*y    +Ans1(8)*(x.^3).*z    +Ans1(9)*(y.^3).*x    +Ans1(10)*(y.^3).*z    -Ans1(11)*(z.^3).*x    +Ans1(12)*(z.^3).*y -1 ;
 h=@(x,y,z) Ans3(1)*x.^4+  Ans3(2)*y.^4+    Ans3(3)*z.^4+    Ans3(4)*x.^2*y.^2   +Ans3(5)*x.^2*z.^2   +Ans3(6)*y.^2*z.^2 ...
    +Ans3(7)*(x.^3).*y    +Ans3(8)*(x.^3).*z    +Ans3(9)*(y.^3).*x    +Ans3(10)*(y.^3).*z    +Ans3(11)*(z.^3).*x    +Ans3(12)*(z.^3).*y -1 ;
-hr=@(x,y,z) Ans4(1)*x.^4+  Ans4(2)*y.^4+    Ans4(3)*z.^4+    Ans4(4)*x.^2*y.^2   +Ans4(5)*x.^2*z.^2   +Ans4(6)*y.^2*z.^2 ...
-   +Ans4(7)*(x.^3).*y    +Ans4(8)*(x.^3).*z    +Ans4(9)*(y.^3).*x    +Ans4(10)*(y.^3).*z    +Ans3(11)*(z.^3).*x    +Ans4(12)*(z.^3).*y -1 ;
+hr=@(x,y,z) Ans4(1)*x.^4+ Ans4(2)*y.^4+    Ans4(3)*z.^4+    Ans4(4)*x.^2*y.^2   +Ans4(5)*x.^2*z.^2   +Ans4(6)*y.^2*z.^2 ...
+   +Ans4(7)*(x.^3).*y    +Ans4(8)*(x.^3).*z    +Ans4(9)*(y.^3).*x    +Ans4(10)*(y.^3).*z    +Ans3(11)*(z.^3).*x    +Ans4(12)*(z.^3).*y -1 ...
+   +Ans4(13)*(x.^2).*y.*z+Ans4(14)*(y.^2).*z.*x+Ans4(15)*(z.^2).*x.*y;;
+h_2=@(x,y,z) Ans3_2(1)*x.^4+  Ans3_2(2)*y.^4+    Ans3_2(3)*z.^4+    Ans3_2(4)*x.^2*y.^2   +Ans3_2(5)*x.^2*z.^2   +Ans3_2(6)*y.^2*z.^2 ...
+   +Ans3_2(7)*(x.^3).*y    +Ans3_2(8)*(x.^3).*z    +Ans3_2(9)*(y.^3).*x    +Ans3_2(10)*(y.^3).*z    +Ans3_2(11)*(z.^3).*x    +Ans3_2(12)*(z.^3).*y -1 ...
+   +Ans3_2(13)*(x.^2).*y.*z +Ans3_2(14)*(y.^2).*z.*x    +Ans3_2(15)*(z.^2).*x.*y;
 
-
+%%
 figure;
 hold on
 fimplicit3(g,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
@@ -49,7 +56,7 @@ fimplicit3(f,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
 scatter3(PP2(:,1),PP2(:,2),PP2(:,3),'b');
 
 hold off
-
+%%
 
 
 
@@ -59,5 +66,14 @@ hold on
 fimplicit3(hr,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
 scatter3(PP(:,1),PP(:,2),PP(:,3),'g');
 scatter3(R_PP2(:,1),R_PP2(:,2),R_PP2(:,3),'b');
+
+hold off
+
+figure;
+hold on
+%fimplicit3(h,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
+fimplicit3(h_2,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
+scatter3(PP(:,1),PP(:,2),PP(:,3),'g');
+
 
 hold off
