@@ -4,7 +4,7 @@ function output = regressionFourthOrder(inputMatrix)
     
     tic
     output = inv(Temp.' * Temp)* Temp.' * ones(length(inputMatrix(:,1)),1);
-    toc
+    toc 
 
 
 end
