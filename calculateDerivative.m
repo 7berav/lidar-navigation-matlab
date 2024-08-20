@@ -5,9 +5,9 @@ function output = calculateDerivative(inputMatrix)
     z = inputMatrix(:, 3);
     
     % 각 항을 계산
-    dx = 4x.^3;
-    dy = 4y.^3;
-    dz = 4z.^3;
+    dx = 4*x.^3;
+    dy = 4*y.^3;
+    dz = 4*z.^3;
     
     
     % 결과 행렬을 생성
