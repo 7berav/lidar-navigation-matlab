@@ -1,7 +1,11 @@
 %2024 08 20
+tic
+PP =generateRandomPointsOnSurface(1003)+randn(1003,3)*0.01;
+toc
+shiftReal =  [0.20 -0.13 -0.01];
+PPm= PP + shiftReal;
 
-PP =generateRandomPointsOnSurface(403)+randn(403,3)*0.01;
-PPm=generateRandomPointsOnSurface(403)+randn(403,3)*0.01+ [0 0.15 0.22];
+
 PP2=PP(PP(:,3)>0.5,:);
 PP3=PP(PP(:,1)>0.80|PP(:,1)<-.70,:);
 PP4=PP(PP(:,2)>0.72&PP(:,3)>0,:);
@@ -10,7 +14,7 @@ PP6=PP(PP(:,2)>0.652&PP(:,3)<0&PP(:,1)>0,:);
 
 q= [cos(10/180*pi) 0 sin(10/180*pi)*1/sqrt(5) sin(10/180*pi)*2/sqrt(5)];
 rotationM = quat2rotm(q);
-R_PP2 = PP * rotationM';
+%R_PP2 = PP * rotationM';
  
 %{
 figure();
@@ -24,6 +28,7 @@ hold off
 %}
 
 %%
+%{
 %[beta0 error0]=regressionFourthOrder([PPm])
 [beta1 error1]=regressionFourthOrder([PP2;PP4]);
 [beta2 error2]=regressionFourthOrder([PP4]);
@@ -47,8 +52,9 @@ hr=@(x,y,z) beta4(1)*x.^4+ beta4(2)*y.^4+    beta4(3)*z.^4+    beta4(4)*x.^2*y.^
 h=@(x,y,z) beta3(1)*x.^4+  beta3(2)*y.^4+    beta3(3)*z.^4+    beta3(4)*x.^2*y.^2   +beta3(5)*x.^2*z.^2   +beta3(6)*y.^2*z.^2 ...
    +beta3(7)*(x.^3).*y    +beta3(8)*(x.^3).*z    +beta3(9)*(y.^3).*x    +beta3(10)*(y.^3).*z    +beta3(11)*(z.^3).*x    +beta3(12)*(z.^3).*y -1 ...
    +beta3(13)*(x.^2).*y.*z+beta3(14)*(y.^2).*z.*x+beta3(15)*(z.^2).*x.*y;
-
+%}
 %%
+%{
 beta2
 figure;
 hold on
@@ -56,7 +62,7 @@ fimplicit3(g,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
 scatter3(PP2(:,1),PP2(:,2),PP2(:,3),'b');
 scatter3(PP4(:,1),PP4(:,2),PP4(:,3),'g');
 hold off
-
+%}
 
 
 %%
@@ -82,20 +88,26 @@ hold off
 
 %%
 [beta,error]    = regressionFourthOrder(PPm);
-beta
-
+betaError = norm(beta(4:15),1)
 % 초기 값 설정
 PPm_shift = PPm;  % 초기 PPm 설정
 error_shift = error;  % 초기 에러 설정
+
 colors = {'r', 'g', 'black'};  % 색상 설정
-numIterations = 7;  % 반복 횟수 설정
+
+shiftSet = [];
+shiftResidue = shiftReal.';
+shiftResidueSet = [];
+numIterations = 8;  % 반복 횟수 설정
+
+
 
 f = @(x, y, z) beta(1)*x.^4 + beta(2)*y.^4 + beta(3)*z.^4 + ...
                beta(4)*x.^2.*y.^2 + beta(5)*x.^2.*z.^2 + beta(6)*y.^2.*z.^2 + ...
                beta(7)*(x.^3).*y + beta(8)*(x.^3).*z + beta(9)*(y.^3).*x + ...
                beta(10)*(y.^3).*z + beta(11)*(z.^3).*x + beta(12)*(z.^3).*y - 1 + ...
                beta(13)*(x.^2).*y.*z + beta(14)*(y.^2).*z.*x + beta(15)*(z.^2).*x.*y;
-
+figure
 hold on
 
 fimplicit3(f,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
@@ -108,10 +120,12 @@ axis equal
 for i = 1:numIterations
     % 선형 회귀 및 4차식 피팅
     [shift, residual] = regressionShift(PPm_shift, error_shift);
-    shift
+    shiftSet = [shiftSet shift];
+    shiftResidue = shiftResidue + shift;
+    shiftResidueSet = [shiftResidueSet shiftResidue];
     PPm_shift = PPm_shift + shift.';
     [beta, error_shift] = regressionFourthOrder(PPm_shift);
-    beta
+    betaError = [betaError norm(beta(4:15),1)];
     % 익명 함수 정의
     f = @(x, y, z) beta(1)*x.^4 + beta(2)*y.^4 + beta(3)*z.^4 + ...
                    beta(4)*x.^2.*y.^2 + beta(5)*x.^2.*z.^2 + beta(6)*y.^2.*z.^2 + ...
@@ -128,3 +142,11 @@ for i = 1:numIterations
     axis equal;
     %}
 end
+figure
+hold on
+
+fimplicit3(f,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
+scatter3(PPm_shift(:,1),PPm_shift(:,2),PPm_shift(:,3),'b');
+
+hold off
+axis equal
