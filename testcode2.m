@@ -1,7 +1,7 @@
 %2024 08 20
 
-PP=generateRandomPointsOnSurface(403)+randn(403,3)*0.034;
-
+PP =generateRandomPointsOnSurface(403)+randn(403,3)*0.01;
+PPm=generateRandomPointsOnSurface(403)+randn(403,3)*0.01+ [0 0.15 0.22];
 PP2=PP(PP(:,3)>0.5,:);
 PP3=PP(PP(:,1)>0.80|PP(:,1)<-.70,:);
 PP4=PP(PP(:,2)>0.72&PP(:,3)>0,:);
@@ -24,25 +24,32 @@ hold off
 %}
 
 %%
+%[beta0 error0]=regressionFourthOrder([PPm])
+[beta1 error1]=regressionFourthOrder([PP2;PP4]);
+[beta2 error2]=regressionFourthOrder([PPm]);
+[beta3 error3]=regressionFourthOrder([PP]);
+[beta4 error4]=regressionFourthOrder([R_PP2]);
 
-Ans1=regressionFourthOrder([PP2;PP4])
-Ans2=regressionFourthOrder([PP2])
-Ans3=regressionFourthOrder([PP])
-Ans4=regressionFourthOrder([R_PP2])
-f=@(x,y,z) Ans2(1)*x.^4+  Ans2(2)*y.^4+    Ans2(3)*z.^4+    Ans2(4)*x.^2*y.^2   +Ans2(5)*x.^2*z.^2   +Ans2(6)*y.^2*z.^2 ...
-   +Ans2(7)*(x.^3).*y    +Ans2(8)*(x.^3).*z    +Ans2(9)*(y.^3).*x    +Ans2(10)*(y.^3).*z    -Ans2(11)*(z.^3).*x    +Ans2(12)*(z.^3).*y -1 ;
-g=@(x,y,z) Ans1(1)*x.^4+  Ans1(2)*y.^4+    Ans1(3)*z.^4+    Ans1(4)*x.^2*y.^2   +Ans1(5)*x.^2*z.^2   +Ans1(6)*y.^2*z.^2 ...
-   +Ans1(7)*(x.^3).*y    +Ans1(8)*(x.^3).*z    +Ans1(9)*(y.^3).*x    +Ans1(10)*(y.^3).*z    -Ans1(11)*(z.^3).*x    +Ans1(12)*(z.^3).*y -1 ;
-h=@(x,y,z) Ans3(1)*x.^4+  Ans3(2)*y.^4+    Ans3(3)*z.^4+    Ans3(4)*x.^2*y.^2   +Ans3(5)*x.^2*z.^2   +Ans3(6)*y.^2*z.^2 ...
-   +Ans3(7)*(x.^3).*y    +Ans3(8)*(x.^3).*z    +Ans3(9)*(y.^3).*x    +Ans3(10)*(y.^3).*z    +Ans3(11)*(z.^3).*x    +Ans3(12)*(z.^3).*y -1 ;
-hr=@(x,y,z) Ans4(1)*x.^4+ Ans4(2)*y.^4+    Ans4(3)*z.^4+    Ans4(4)*x.^2*y.^2   +Ans4(5)*x.^2*z.^2   +Ans4(6)*y.^2*z.^2 ...
-   +Ans4(7)*(x.^3).*y    +Ans4(8)*(x.^3).*z    +Ans4(9)*(y.^3).*x    +Ans4(10)*(y.^3).*z    +Ans3(11)*(z.^3).*x    +Ans4(12)*(z.^3).*y -1 ...
-   +Ans4(13)*(x.^2).*y.*z+Ans4(14)*(y.^2).*z.*x+Ans4(15)*(z.^2).*x.*y;;
-h_2=@(x,y,z) Ans3_2(1)*x.^4+  Ans3_2(2)*y.^4+    Ans3_2(3)*z.^4+    Ans3_2(4)*x.^2*y.^2   +Ans3_2(5)*x.^2*z.^2   +Ans3_2(6)*y.^2*z.^2 ...
-   +Ans3_2(7)*(x.^3).*y    +Ans3_2(8)*(x.^3).*z    +Ans3_2(9)*(y.^3).*x    +Ans3_2(10)*(y.^3).*z    +Ans3_2(11)*(z.^3).*x    +Ans3_2(12)*(z.^3).*y -1 ...
-   +Ans3_2(13)*(x.^2).*y.*z +Ans3_2(14)*(y.^2).*z.*x    +Ans3_2(15)*(z.^2).*x.*y;
+f=@(x,y,z) beta2(1)*x.^4+  beta2(2)*y.^4+    beta2(3)*z.^4+    beta2(4)*x.^2*y.^2   +beta2(5)*x.^2*z.^2   +beta2(6)*y.^2*z.^2 ...
+   +beta2(7)*(x.^3).*y    +beta2(8)*(x.^3).*z    +beta2(9)*(y.^3).*x    +beta2(10)*(y.^3).*z    +beta2(11)*(z.^3).*x    +beta2(12)*(z.^3).*y -1 ...
+   +beta2(13)*(x.^2).*y.*z+beta2(14)*(y.^2).*z.*x+beta2(15)*(z.^2).*x.*y;
+g=@(x,y,z) beta1(1)*x.^4+  beta1(2)*y.^4+    beta1(3)*z.^4+    beta1(4)*x.^2*y.^2   +beta1(5)*x.^2*z.^2   +beta1(6)*y.^2*z.^2 ...
+   +beta1(7)*(x.^3).*y    +beta1(8)*(x.^3).*z    +beta1(9)*(y.^3).*x    +beta1(10)*(y.^3).*z    +beta1(11)*(z.^3).*x    +beta1(12)*(z.^3).*y -1 ...
+   +beta1(13)*(x.^2).*y.*z+beta1(14)*(y.^2).*z.*x+beta1(15)*(z.^2).*x.*y;
+
+%h=@(x,y,z) Ans3(1)*x.^4+  Ans3(2)*y.^4+    Ans3(3)*z.^4+    Ans3(4)*x.^2*y.^2   +Ans3(5)*x.^2*z.^2   +Ans3(6)*y.^2*z.^2 ...
+%   +Ans3(7)*(x.^3).*y    +Ans3(8)*(x.^3).*z    +Ans3(9)*(y.^3).*x    +Ans3(10)*(y.^3).*z    +Ans3(11)*(z.^3).*x    +Ans3(12)*(z.^3).*y -1 ;
+
+
+hr=@(x,y,z) beta4(1)*x.^4+ beta4(2)*y.^4+    beta4(3)*z.^4+    beta4(4)*x.^2*y.^2   +beta4(5)*x.^2*z.^2   +beta4(6)*y.^2*z.^2 ...
+   +beta4(7)*(x.^3).*y    +beta4(8)*(x.^3).*z    +beta4(9)*(y.^3).*x    +beta4(10)*(y.^3).*z    +beta3(11)*(z.^3).*x    +beta4(12)*(z.^3).*y -1 ...
+   +beta4(13)*(x.^2).*y.*z+beta4(14)*(y.^2).*z.*x+beta4(15)*(z.^2).*x.*y;
+h=@(x,y,z) beta3(1)*x.^4+  beta3(2)*y.^4+    beta3(3)*z.^4+    beta3(4)*x.^2*y.^2   +beta3(5)*x.^2*z.^2   +beta3(6)*y.^2*z.^2 ...
+   +beta3(7)*(x.^3).*y    +beta3(8)*(x.^3).*z    +beta3(9)*(y.^3).*x    +beta3(10)*(y.^3).*z    +beta3(11)*(z.^3).*x    +beta3(12)*(z.^3).*y -1 ...
+   +beta3(13)*(x.^2).*y.*z+beta3(14)*(y.^2).*z.*x+beta3(15)*(z.^2).*x.*y;
 
 %%
+beta2
 figure;
 hold on
 fimplicit3(g,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
@@ -50,15 +57,16 @@ scatter3(PP2(:,1),PP2(:,2),PP2(:,3),'b');
 scatter3(PP4(:,1),PP4(:,2),PP4(:,3),'g');
 hold off
 
-figure;
+
 hold on
 fimplicit3(f,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
-scatter3(PP2(:,1),PP2(:,2),PP2(:,3),'b');
+scatter3(PPm(:,1),PPm(:,2),PPm(:,3),'b');
 
 hold off
+axis equal
 %%
 
-
+%{
 
 figure;
 hold on
@@ -77,3 +85,62 @@ scatter3(PP(:,1),PP(:,2),PP(:,3),'g');
 
 
 hold off
+%}
+
+%%
+
+[shift2 residual2]=regressionShift(PPm,error2);
+
+PPm_2=PPm + shift2.';
+[beta2 error2_2]=regressionFourthOrder([PPm_2]);
+beta2
+f2=@(x,y,z) beta2(1)*x.^4+  beta2(2)*y.^4+    beta2(3)*z.^4+    beta2(4)*x.^2*y.^2   +beta2(5)*x.^2*z.^2   +beta2(6)*y.^2*z.^2 ...
+   +beta2(7)*(x.^3).*y    +beta2(8)*(x.^3).*z    +beta2(9)*(y.^3).*x    +beta2(10)*(y.^3).*z    +beta2(11)*(z.^3).*x    +beta2(12)*(z.^3).*y -1 ...
+   +beta2(13)*(x.^2).*y.*z+beta2(14)*(y.^2).*z.*x+beta2(15)*(z.^2).*x.*y;
+
+figure
+
+hold on
+fimplicit3(f2,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
+scatter3(PPm_2(:,1),PPm_2(:,2),PPm_2(:,3),'r');
+
+hold off
+axis equal
+
+[shift3 residual3]=regressionShift(PPm_2,error2_2);
+
+PPm_3=PPm_2 + shift3.';
+[beta2 error2_3]=regressionFourthOrder([PPm_3]);
+beta2
+f3=@(x,y,z) beta2(1)*x.^4+  beta2(2)*y.^4+    beta2(3)*z.^4+    beta2(4)*x.^2*y.^2   +beta2(5)*x.^2*z.^2   +beta2(6)*y.^2*z.^2 ...
+   +beta2(7)*(x.^3).*y    +beta2(8)*(x.^3).*z    +beta2(9)*(y.^3).*x    +beta2(10)*(y.^3).*z    +beta2(11)*(z.^3).*x    +beta2(12)*(z.^3).*y -1 ...
+   +beta2(13)*(x.^2).*y.*z+beta2(14)*(y.^2).*z.*x+beta2(15)*(z.^2).*x.*y;
+
+figure
+
+hold on
+fimplicit3(f3,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
+scatter3(PPm_3(:,1),PPm_3(:,2),PPm_3(:,3),'g');
+
+hold off
+axis equal
+
+
+[shift4 residual4]=regressionShift(PPm_3,error2_3);
+
+PPm_4=PPm_3 + shift4.';
+[beta2 error2_4]=regressionFourthOrder([PPm_4]);
+beta2
+f4=@(x,y,z) beta2(1)*x.^4+  beta2(2)*y.^4+    beta2(3)*z.^4+    beta2(4)*x.^2*y.^2   +beta2(5)*x.^2*z.^2   +beta2(6)*y.^2*z.^2 ...
+   +beta2(7)*(x.^3).*y    +beta2(8)*(x.^3).*z    +beta2(9)*(y.^3).*x    +beta2(10)*(y.^3).*z    +beta2(11)*(z.^3).*x    +beta2(12)*(z.^3).*y -1 ...
+   +beta2(13)*(x.^2).*y.*z+beta2(14)*(y.^2).*z.*x+beta2(15)*(z.^2).*x.*y;
+
+figure
+
+hold on
+fimplicit3(f4,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
+scatter3(PPm_4(:,1),PPm_4(:,2),PPm_4(:,3),'black');
+
+hold off
+axis equal
+
