@@ -26,7 +26,7 @@ hold off
 %%
 %[beta0 error0]=regressionFourthOrder([PPm])
 [beta1 error1]=regressionFourthOrder([PP2;PP4]);
-[beta2 error2]=regressionFourthOrder([PPm]);
+[beta2 error2]=regressionFourthOrder([PP4]);
 [beta3 error3]=regressionFourthOrder([PP]);
 [beta4 error4]=regressionFourthOrder([R_PP2]);
 
@@ -58,16 +58,9 @@ scatter3(PP4(:,1),PP4(:,2),PP4(:,3),'g');
 hold off
 
 
-hold on
-fimplicit3(f,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
-scatter3(PPm(:,1),PPm(:,2),PPm(:,3),'b');
 
-hold off
-axis equal
 %%
-
 %{
-
 figure;
 hold on
 %fimplicit3(h,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
@@ -88,59 +81,50 @@ hold off
 %}
 
 %%
+[beta,error]    = regressionFourthOrder(PPm);
+beta
 
-[shift2 residual2]=regressionShift(PPm,error2);
+% 초기 값 설정
+PPm_shift = PPm;  % 초기 PPm 설정
+error_shift = error;  % 초기 에러 설정
+colors = {'r', 'g', 'black'};  % 색상 설정
+numIterations = 7;  % 반복 횟수 설정
 
-PPm_2=PPm + shift2.';
-[beta2 error2_2]=regressionFourthOrder([PPm_2]);
-beta2
-f2=@(x,y,z) beta2(1)*x.^4+  beta2(2)*y.^4+    beta2(3)*z.^4+    beta2(4)*x.^2*y.^2   +beta2(5)*x.^2*z.^2   +beta2(6)*y.^2*z.^2 ...
-   +beta2(7)*(x.^3).*y    +beta2(8)*(x.^3).*z    +beta2(9)*(y.^3).*x    +beta2(10)*(y.^3).*z    +beta2(11)*(z.^3).*x    +beta2(12)*(z.^3).*y -1 ...
-   +beta2(13)*(x.^2).*y.*z+beta2(14)*(y.^2).*z.*x+beta2(15)*(z.^2).*x.*y;
-
-figure
-
-hold on
-fimplicit3(f2,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
-scatter3(PPm_2(:,1),PPm_2(:,2),PPm_2(:,3),'r');
-
-hold off
-axis equal
-
-[shift3 residual3]=regressionShift(PPm_2,error2_2);
-
-PPm_3=PPm_2 + shift3.';
-[beta2 error2_3]=regressionFourthOrder([PPm_3]);
-beta2
-f3=@(x,y,z) beta2(1)*x.^4+  beta2(2)*y.^4+    beta2(3)*z.^4+    beta2(4)*x.^2*y.^2   +beta2(5)*x.^2*z.^2   +beta2(6)*y.^2*z.^2 ...
-   +beta2(7)*(x.^3).*y    +beta2(8)*(x.^3).*z    +beta2(9)*(y.^3).*x    +beta2(10)*(y.^3).*z    +beta2(11)*(z.^3).*x    +beta2(12)*(z.^3).*y -1 ...
-   +beta2(13)*(x.^2).*y.*z+beta2(14)*(y.^2).*z.*x+beta2(15)*(z.^2).*x.*y;
-
-figure
+f = @(x, y, z) beta(1)*x.^4 + beta(2)*y.^4 + beta(3)*z.^4 + ...
+               beta(4)*x.^2.*y.^2 + beta(5)*x.^2.*z.^2 + beta(6)*y.^2.*z.^2 + ...
+               beta(7)*(x.^3).*y + beta(8)*(x.^3).*z + beta(9)*(y.^3).*x + ...
+               beta(10)*(y.^3).*z + beta(11)*(z.^3).*x + beta(12)*(z.^3).*y - 1 + ...
+               beta(13)*(x.^2).*y.*z + beta(14)*(y.^2).*z.*x + beta(15)*(z.^2).*x.*y;
 
 hold on
-fimplicit3(f3,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
-scatter3(PPm_3(:,1),PPm_3(:,2),PPm_3(:,3),'g');
+
+fimplicit3(f,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
+scatter3(PPm(:,1),PPm(:,2),PPm(:,3),'b');
 
 hold off
 axis equal
 
 
-[shift4 residual4]=regressionShift(PPm_3,error2_3);
-
-PPm_4=PPm_3 + shift4.';
-[beta2 error2_4]=regressionFourthOrder([PPm_4]);
-beta2
-f3=@(x,y,z) beta2(1)*x.^4+  beta2(2)*y.^4+    beta2(3)*z.^4+    beta2(4)*x.^2*y.^2   +beta2(5)*x.^2*z.^2   +beta2(6)*y.^2*z.^2 ...
-   +beta2(7)*(x.^3).*y    +beta2(8)*(x.^3).*z    +beta2(9)*(y.^3).*x    +beta2(10)*(y.^3).*z    +beta2(11)*(z.^3).*x    +beta2(12)*(z.^3).*y -1 ...
-   +beta2(13)*(x.^2).*y.*z+beta2(14)*(y.^2).*z.*x+beta2(15)*(z.^2).*x.*y;
-
-figure
-
-hold on
-fimplicit3(f4,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
-scatter3(PPm_4(:,1),PPm_4(:,2),PPm_4(:,3),'black');
-
-hold off
-axis equal
-
+for i = 1:numIterations
+    % 선형 회귀 및 4차식 피팅
+    [shift, residual] = regressionShift(PPm_shift, error_shift);
+    shift
+    PPm_shift = PPm_shift + shift.';
+    [beta, error_shift] = regressionFourthOrder(PPm_shift);
+    beta
+    % 익명 함수 정의
+    f = @(x, y, z) beta(1)*x.^4 + beta(2)*y.^4 + beta(3)*z.^4 + ...
+                   beta(4)*x.^2.*y.^2 + beta(5)*x.^2.*z.^2 + beta(6)*y.^2.*z.^2 + ...
+                   beta(7)*(x.^3).*y + beta(8)*(x.^3).*z + beta(9)*(y.^3).*x + ...
+                   beta(10)*(y.^3).*z + beta(11)*(z.^3).*x + beta(12)*(z.^3).*y - 1 + ...
+                   beta(13)*(x.^2).*y.*z + beta(14)*(y.^2).*z.*x + beta(15)*(z.^2).*x.*y;
+    
+    %{
+    figure;
+    hold on;
+    fimplicit3(f, [-1.5 1.5 -1.5 1.5 -1.5 1.5]);
+    scatter3(PPm_shift(:,1), PPm_shift(:,2), PPm_shift(:,3), colors{mod(i,3)+1});
+    hold off;
+    axis equal;
+    %}
+end
