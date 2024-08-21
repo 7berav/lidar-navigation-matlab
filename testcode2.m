@@ -1,10 +1,9 @@
 %2024 08 20
 tic
-PP =generateRandomPointsOnSurface(1003)+randn(1003,3)*0.01;
+PP =generateRandomPointsOnSurface(903)+randn(903,3)*0.01;
 toc
-shiftReal =  [0.20 -0.13 -0.01];
-PPm= PP + shiftReal;
-
+shiftReal =  [.010 -0.03 -0.01];
+PPm = PP + shiftReal;
 
 PP2=PP(PP(:,3)>0.5,:);
 PP3=PP(PP(:,1)>0.80|PP(:,1)<-.70,:);
@@ -12,6 +11,9 @@ PP4=PP(PP(:,2)>0.72&PP(:,3)>0,:);
 PP5=PP(PP(:,2)<-0.73&PP(:,3)<0,:);
 PP6=PP(PP(:,2)>0.652&PP(:,3)<0&PP(:,1)>0,:);
 
+PPm2= [PP2] + shiftReal;
+PPm3= [PP2;PP4] + shiftReal;
+PPm4= [PP4] + shiftReal;
 q= [cos(10/180*pi) 0 sin(10/180*pi)*1/sqrt(5) sin(10/180*pi)*2/sqrt(5)];
 rotationM = quat2rotm(q);
 %R_PP2 = PP * rotationM';
@@ -87,10 +89,11 @@ hold off
 %}
 
 %%
-[beta,error]    = regressionFourthOrder(PPm);
+PPm_use = PPm;
+[beta,error]    = regressionFourthOrder(PPm_use);
 betaError = norm(beta(4:15),1)
 % 초기 값 설정
-PPm_shift = PPm;  % 초기 PPm 설정
+PPm_shift = PPm_use;  % 초기 PPm 설정
 error_shift = error;  % 초기 에러 설정
 
 colors = {'r', 'g', 'black'};  % 색상 설정
@@ -98,7 +101,7 @@ colors = {'r', 'g', 'black'};  % 색상 설정
 shiftSet = [];
 shiftResidue = shiftReal.';
 shiftResidueSet = [];
-numIterations = 8;  % 반복 횟수 설정
+numIterations = 905;  % 반복 횟수 설정
 
 
 
@@ -111,7 +114,7 @@ figure
 hold on
 
 fimplicit3(f,[-1.5 1.5 -1.5 1.5 -1.5 1.5]);
-scatter3(PPm(:,1),PPm(:,2),PPm(:,3),'b');
+scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),'b');
 
 hold off
 axis equal
@@ -150,3 +153,7 @@ scatter3(PPm_shift(:,1),PPm_shift(:,2),PPm_shift(:,3),'b');
 
 hold off
 axis equal
+figure
+plot(shiftResidueSet(1,:))
+figure
+plot(shiftResidueSet(2,:))
