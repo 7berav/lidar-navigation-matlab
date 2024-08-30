@@ -128,6 +128,13 @@ scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),'b');
 hold off
 axis equal
 
+%test
+
+
+%testg
+
+
+%branching test
 %%
 for i = 1:numIterations
     % 선형 회귀 및 4차식 피팅
