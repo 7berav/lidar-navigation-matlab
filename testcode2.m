@@ -1,24 +1,24 @@
 %2024 08 20
 tic
-PP =generateRandomPointsOnSurface(2403)+randn(2403,3)*0.0001;
+PP01 =generateRandomPointsOnSurface(2403)+randn(2403,3)*0.0001;
+PP02 =generateRandomPointsOnCylinder(170)+randn(170,3)*0.03;
 toc
-shiftReal =  [.00 -0.07 -0.00];
-PPm = PP + shiftReal;
-PPmm= PP*3 + shiftReal;
+shiftReal =  [.10 -0.27 -0.20];
+PPm = PP02 + shiftReal;
+PPmm= PP02*3 + shiftReal;
 
 
-PP2=PP(PP(:,3)>0.5,:);
-PP3=PP(PP(:,1)>0.80|PP(:,1)<-.70,:);
-PP4=PP(PP(:,2)>0.72&PP(:,3)>0,:);
-PP5=PP(PP(:,2)<-0.73&PP(:,3)<0,:);
-PP6=PP(PP(:,2)>0.652&PP(:,3)<0&PP(:,1)>0,:);
+PP2=PP02(PP02(:,3)>0.5,:);
+PP3=PP02(PP02(:,1)>0.80|PP02(:,1)<-.70,:);
+PP4=PP02(PP02(:,2)>0.72&PP02(:,3)>0,:);
+PP5=PP02(PP02(:,2)<-0.73&PP02(:,3)<0,:);
+PP6=PP02(PP02(:,2)>0.652&PP02(:,3)<0&PP02(:,1)>0,:);
 
 PPm2= [PP2] + shiftReal;
-PPm3= [PP2;PP4] + shiftReal;
-PPmm3= PPm3*3 + shiftReal;
+PPm24= [PP2;PP4] + shiftReal;
+PPm3= [PP2;PP4]*3 + shiftReal;
 PPm4= [PP4] + shiftReal;
-q= [cos(10/180*pi) 0 sin(10/180*pi)*1/sqrt(5) sin(10/180*pi)*2/sqrt(5)];
-rotationM = quat2rotm(q);
+
 %R_PP2 = PP * rotationM';
  
 %{
@@ -56,16 +56,15 @@ d2_numeric = matlabFunction(dify, 'Vars', {[x, y, z], beta});
 d3_numeric = matlabFunction(difz, 'Vars', {[x, y, z], beta});
 
 
-PPm_use = PPS1;
+[beta_value0,error]    = regressionFourthOrder(PP02);
+PPm_use = PPm;
 [beta_values,error]    = regressionFourthOrder(PPm_use);
-
-
 %beta 고정
 %0.00026s
 tic
 f2_partial = @(xyz) f2_numeric(xyz, beta_values.');
+f2_partialgraph = @(x,y,z) f2_numeric([x,y,z], beta_values.');
 toc
-
 %개수따라 다르지만 0.0028~0.005s
 %tic
 %dx_test = d1_partial(PP);
@@ -73,88 +72,59 @@ toc
 
 %0.003
 tic 
-dx_test = d1_numeric(PP, beta_values.');
-dy_test = d2_numeric(PP, beta_values.');
-dz_test = d3_numeric(PP, beta_values.');
+dx_test = d1_numeric(PPm_use, beta_values.');
+dy_test = d2_numeric(PPm_use, beta_values.');
+dz_test = d3_numeric(PPm_use, beta_values.');
 toc
 
 
 % 초기 값 설정
 PPm_shift = PPm_use;  % 초기 PPm 설정
 error_shift = error;  % 초기 에러 설정
-
-colors = {'r', 'g', 'black'};  % 색상 설정
-
 shiftSet = [];
 shiftResidue = shiftReal.';
 shiftResidueSet = [];
 numIterations = 150;  % 반복 횟수 설정
 
-
-
-%%
 figure
 hold on
-fimplicit3(f2_partial,[-4.5 4.5 -4.5 4.5 -4.5 4.5]);
-scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),'b');
+fimplicit3(f2_partialgraph,[-4.5 4.5 -4.5 4.5 -4.5 4.5]);
+scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),'r');
 hold off
 axis equal
 
-%test
-
-
-%testg
-
-
-%branching test
 %%
 for i = 1:numIterations
     % 선형 회귀 및 4차식 피팅
-    1
-    tic
-    [shift, residual] = regressionShift(PPm_shift, error_shift,f2);
-    toc
-    %소요시간 0.12초 내외
+    dx = d1_numeric(PPm_shift, beta_values.');
+    dy = d2_numeric(PPm_shift, beta_values.');
+    dz = d3_numeric(PPm_shift, beta_values.');
+    dxyz = [dx dy dz];
+    [shift, residual] = regressionShift(PPm_shift, error_shift,dxyz);
+
+    %소요시간 0.0008s
+
+
     
     shiftSet = [shiftSet shift];
     shiftResidue = shiftResidue + shift;
     shiftResidueSet = [shiftResidueSet shiftResidue];
     PPm_shift = PPm_shift + shift.';
-    
 
+    [beta_values, error_shift] = regressionFourthOrder(PPm_shift);
+
+    %0.001s 
     
-    [beta, error_shift] = regressionFourthOrder(PPm_shift);
-    betaError = [betaError norm(beta(4:15),1)];
-    
-    % 익명 함수 정의
-    f2 = beta(1)*x.^4 + beta(2)*y.^4 + beta(3)*z.^4 + ...
-         beta(4)*x.^2.*y.^2 + beta(5)*x.^2.*z.^2 + beta(6)*y.^2.*z.^2 + ...
-         beta(7)*(x.^3).*y + beta(8)*(x.^3).*z + beta(9)*(y.^3).*x + ...
-         beta(10)*(y.^3).*z + beta(11)*(z.^3).*x + beta(12)*(z.^3).*y - 1 + ...
-         beta(13)*(x.^2).*y.*z + beta(14)*(y.^2).*z.*x + beta(15)*(z.^2).*x.*y;
-    
-    %소요시간 0.034초 내외
-    %{
-    figure;
-    hold on;
-    fimplicit3(f, [-1.5 1.5 -1.5 1.5 -1.5 1.5]);
-    scatter3(PPm_shift(:,1), PPm_shift(:,2), PPm_shift(:,3), colors{mod(i,3)+1});
-    hold off;
-    axis equal;
-    %}
 end
 
-
-%{
+f2_partialgraph = @(x,y,z) f2_numeric([x,y,z], beta_values.');
 figure
 hold on
-f2_numeric = matlabFunction(f2,'Vars',[x,y,z]);
-fimplicit3(f2_numeric,[-3.5 3.5 -3.5 3.5 -3.5 3.5]);
-scatter3(PPm_shift(:,1),PPm_shift(:,2),PPm_shift(:,3),'b');
+fimplicit3(f2_partialgraph,[-4.5 4.5 -4.5 4.5 -4.5 4.5]);
+scatter3(PPm_shift(:,1),PPm_shift(:,2),PPm_shift(:,3),'r');
 hold off
 axis equal
-%}
-figure
+
 plot(shiftResidueSet(1,:))
 figure
 plot(shiftResidueSet(2,:))
