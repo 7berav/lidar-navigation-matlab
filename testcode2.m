@@ -86,7 +86,7 @@ hold off
 axis equal
 xlim([-4 4]);
 ylim([-4 4]);
-title('Before')
+title('Aftor')
 
 
 norm(error_shift,1)
