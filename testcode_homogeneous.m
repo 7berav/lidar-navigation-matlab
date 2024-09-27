@@ -38,7 +38,7 @@ terms = [terms{:}];
 f0 = sum(terms); 
 % Remove duplicate terms using unique function
 uniqueTerms = unique(terms,'stable');
-uniqueTerms = unique(terms);
+%uniqueTerms = unique(terms);
 f05 = sum(uniqueTerms); 
 % Step 3: Define symbolic coefficients
 beta = sym('beta', [1, length(uniqueTerms)]); % length(terms) should match with the number of terms

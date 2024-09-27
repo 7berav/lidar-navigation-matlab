@@ -1,7 +1,7 @@
 %2024 08 20
-PP02 =generateRandomPointsOnCube(700)+randn(700,3)*0.003;
+PP02 =generateRandomPointsOnCylinder(6000)+randn(6000,3)*0.0005;
 
-shiftReal =  [0.370 -0.07 -0.00];
+shiftReal =  [0.20 -0.1 -0.1];
 PPm = PP02 + shiftReal;
 PPmm= PP02;
 PPmm(:,3) = PPmm(:,3) * 2;
@@ -20,35 +20,64 @@ PPm26= [PP2;PP6] + shiftReal;
 syms x;
 syms y;
 syms z;
-beta = sym('beta', [1, 15]);  % 15개의 심볼릭 변수로 beta 정의
+order = 4;
+TermsA = nonhomogeneTerm(order);
+betaA = sym('beta', [1, length(TermsA)]);
+f1 = sum(betaA .* TermsA);
 
-%symbolic function
-f2= beta(1)*x.^4 + beta(2)*y.^4 + beta(3)*z.^4 + ...
-    beta(4)*x.^2.*y.^2 + beta(5)*x.^2.*z.^2 + beta(6)*y.^2.*z.^2 + ...
-    beta(7)*(x.^3).*y + beta(8)*(x.^3).*z + beta(9)*(y.^3).*x + ...
-    beta(10)*(y.^3).*z + beta(11)*(z.^3).*x + beta(12)*(z.^3).*y - 1 + ...
-    beta(13)*(x.^2).*y.*z + beta(14)*(y.^2).*z.*x + beta(15)*(z.^2).*x.*y;
-%함수 세팅을 1 뺀꼴로 하면 힘들것 같다. 나중에 형상 피팅할떄 힘들다. 지금은 수동이지만. 
+PPm_use = PPm;
+[beta_values0,error0]    = regressionFourthOrder(PPm_use,TermsA);
+f1_numeric = matlabFunction(f1, 'Vars', {[x, y, z], betaA});
+f1_partial = @(x,y,z) f1_numeric([x,y,z], beta_values0.')-1;
+
+PPm_shift = PPm_use;  % 초기 PPm 설정
+shiftResidue = shiftReal.';
+
+%shift 결정하세요
+%그리고 빼고 Residue 랑 PPm 조정하세요
+%
+figure
+hold on
+fimplicit3(f1_partial,[-4.5 4.5 -4.5 4.5 -4.5 4.5]);
+hold off
+axis equal
+title('Initial')
+figure
+hold on
+fimplicit3(f1_partial,[-4.5 4.5 -4.5 4.5 -4.5 4.5]);
+scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),'r');
+hold off
+axis equal
+title('Initial')
+
+% 초기 값 설정
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+
+TermsB = homogeneTerm(order);
+betaB = sym('beta', [1, length(TermsB)]);
+f2 = sum(betaB .* TermsB);
+
 difx = diff(f2, x);
 dify = diff(f2, y);
 difz = diff(f2, z);
-f2_numeric = matlabFunction(f2, 'Vars', {[x, y, z], beta});
-d1_numeric = matlabFunction(difx, 'Vars', {[x, y, z], beta});
-d2_numeric = matlabFunction(dify, 'Vars', {[x, y, z], beta});
-d3_numeric = matlabFunction(difz, 'Vars', {[x, y, z], beta});
+f2_numeric = matlabFunction(f2, 'Vars', {[x, y, z], betaB});
+d1_numeric = matlabFunction(difx, 'Vars', {[x, y, z], betaB});
+d2_numeric = matlabFunction(dify, 'Vars', {[x, y, z], betaB});
+d3_numeric = matlabFunction(difz, 'Vars', {[x, y, z], betaB});
 
-PPm_use = PPm;
-[beta_values,error]    = regressionFourthOrder(PPm_use);
+[beta_values,error]    = regressionFourthOrder(PPm_use,TermsB);
 
-f2_partial = @(x,y,z) f2_numeric([x,y,z], beta_values.');
+error_shift = error;  % 초기 에러 설정
+
+shiftResidueSet = [];
+numIterations = 500;  % 반복 횟수 설정
+
+
+
+f2_partial = @(x,y,z) f2_numeric([x,y,z], beta_values.')-1;
 %%f2_partialgraph = @(x,y,z) f2_numeric([x,y,z], beta_values.');
 
-% 초기 값 설정
-PPm_shift = PPm_use;  % 초기 PPm 설정
-error_shift = error;  % 초기 에러 설정
-shiftResidue = shiftReal.';
-shiftResidueSet = [];
-numIterations = 850;  % 반복 횟수 설정
+
 
 figure
 hold on
@@ -70,13 +99,13 @@ for i = 1:numIterations
     shiftResidueSet = [shiftResidueSet shiftResidue];
     
     PPm_shift = PPm_shift + shift.';
-    [beta_values, error_shift] = regressionFourthOrder(PPm_shift);
+    [beta_values, error_shift] = regressionFourthOrder(PPm_shift,TermsB);
 
     %0.001s 
     
 end
 
-f2_partial = @(x,y,z) f2_numeric([x,y,z], beta_values.');
+f2_partial = @(x,y,z) f2_numeric([x,y,z], beta_values.')-1;
 figure
 hold on
 fimplicit3(f2_partial,[-4.5 4.5 -4.5 4.5 -4.5 4.5]);
