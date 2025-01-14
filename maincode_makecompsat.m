@@ -5,7 +5,7 @@ PP03 =generateRandomPointsOnCylinder(200)+randn(200,3)*0.0005;
 
 shiftReal =  [0.20 -0.1 -0.1];
 PPm_body = PP01 ;
-PPm_body(:,3) = PPm_body(:,3) * 1.2;
+PPm_body(:,3) = PPm_body(:,3) * 1.6;
 PPm_panel1 = PP02 ;
 PPm_panel1(:,1) = PPm_panel1(:,1) / 16;
 PPm_panel1(:,2) = PPm_panel1(:,2) * 1.63;
@@ -23,21 +23,33 @@ q= [1 0 0 0];
 %q= [cos(25/57.92) 0 sin(25/57.92) 0];
 rotm= quat2rotm(q);
 PPmR_body = PPm_body * rotm.';
+
+
 figure
 hold on
-scatter3(PPm_body(:,1),PPm_body(:,2),PPm_body(:,3),'r');
-scatter3(PPm_panel1(:,1),PPm_panel1(:,2),PPm_panel1(:,3),'b');
-scatter3(PPm_panel2(:,1),PPm_panel2(:,2),PPm_panel2(:,3),'b');
+h = PPm_body(:,3);
+scatter3(PPm_body(:,1),PPm_body(:,2),PPm_body(:,3),1,h,'filled');
+h = PPm_panel1(:,3);
+scatter3(PPm_panel1(:,1),PPm_panel1(:,2),PPm_panel1(:,3),1,h,'filled');
+h = PPm_panel1(:,3);
+scatter3(PPm_panel2(:,1),PPm_panel2(:,2),PPm_panel2(:,3),1,h,'filled');
 hold off
+colormap(jet);
 axis equal
-title('Pointcloud Model')
+xlim([-5 5]);  
+ylim([-5 5]);
+zlim([-4 4]);
+title('Pointcloud of KOMPSAT-1 Model')
 figure
 hold on
-scatter3(PPmR_body(:,1),PPmR_body(:,2),PPmR_body(:,3),'r');
+scatter3(PPmR_body(:,1),PPmR_body(:,2),PPmR_body(:,3),10,'r','filled');
 
 hold off
 axis equal
 title('Pointcloud Model')
+xlim([-5 5]);   % x축 범위를 -5에서 5로 설정
+ylim([-5 5]);   % y축 범위를 -5에서 5로 설정
+zlim([-4 4]);
 %%
 syms x;
 syms y;
@@ -52,9 +64,9 @@ PPm_use = PPmR_body;
 f1_numeric = matlabFunction(f1, 'Vars', {[x, y, z], betaA});
 f1_partial = @(x,y,z) f1_numeric([x,y,z], beta_values0.')-1;
 
-f1_total   = subs(f1,betaA,beta_values0);
-syms a b c 
-f1_t_shift = subs(f1_total, [x, y, z], [x-a, y-b, z-c])
+%f1_total   = subs(f1,betaA,beta_values0);
+%syms a b c 
+%f1_t_shift = subs(f1_total, [x, y, z], [x-a, y-b, z-c])
 
 %shift 결정하세요
 %그리고 빼고 Residue 랑 PPm 조정하세요
@@ -75,7 +87,9 @@ hold off
 axis equal
 title('Initial')
 
-shifted_f = subs(poly, [x, y, z], [x - a, y - b, z - c])
+
+%%
+%shifted_f = subs(poly, [x, y, z], [x - a, y - b, z - c])
 % 초기 값 설정
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
 
@@ -108,8 +122,6 @@ numIterations = 40;  % 반복 횟수 설정
 f2_partial = @(x,y,z) f2_numeric([x,y,z], beta_values.')-1;
 %%f2_partialgraph = @(x,y,z) f2_numeric([x,y,z], beta_values.');
 
-
-
 figure
 hold on
 fimplicit3(f2_partial,[-4.5 4.5 -4.5 4.5 -4.5 4.5]);
@@ -117,6 +129,51 @@ scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),'r');
 hold off
 axis equal
 title('Before')
+
+
+
+
+%%
+f2_2D=  @(x,y) -f2_partial(x,y,0);
+[X, Y] = meshgrid(linspace(-2.5, 2.5, 100), ...
+                  linspace(-2.5, 2.5, 100));
+figure
+fcontour(f2_2D,[-1.5 1.5 -1.5 1.5],'fill','on','LevelStep',0.2);
+%caxis auto;
+caxis ([-1 1]);
+colormap(jet(256));
+xlabel('$\mathrm{X}$', 'Interpreter', 'latex')
+ylabel('$\mathrm{Y}$', 'Interpreter', 'latex')
+figure
+fsurf(f2_2D,[-1.5 1.5 -1.5 1.5])
+caxis([-1.5 1]);
+zlim([ -1.2 1.1]);
+colormap("jet");
+xlabel('$\mathrm{X}$', 'Interpreter', 'latex')
+ylabel('$\mathrm{Y}$', 'Interpreter', 'latex')
+zlabel('$\mathrm{g(X,Y)}$', 'Interpreter', 'latex')
+view([1,1,1])
+
+f2_2Dcut = @(x,y) max(f2_2D(x,y),0);
+
+figure
+fsurf(f2_2Dcut,[-1.5 1.5 -1.5 1.5])
+caxis([-0.5 1]);
+zlim([ -0.2 1.1]);
+xlabel('$\mathrm{X}$', 'Interpreter', 'latex')
+ylabel('$\mathrm{Y}$', 'Interpreter', 'latex')
+zlabel('$\mathrm{ReLU(g(X,Y))}$', 'Interpreter', 'latex')
+colormap("jet");
+
+f2_2Dsoftplus = @(x,y) log(exp(f2_2D(x,y)*3)+1)/3;
+figure
+fsurf(f2_2Dsoftplus,[-1.5 1.5 -1.5 1.5])
+caxis([-0.5 1]);
+zlim([ -0.2 1.1]);
+xlabel('$\mathrm{X}$', 'Interpreter', 'latex')
+ylabel('$\mathrm{Y}$', 'Interpreter', 'latex')
+zlabel('$\mathrm{ReLU(g(X,Y))}$', 'Interpreter', 'latex')
+colormap("jet");
 
 %% 
 % 회전탐지
