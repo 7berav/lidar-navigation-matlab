@@ -35,9 +35,13 @@ h = PPm_panel1(:,3);
 scatter3(PPm_panel2(:,1),PPm_panel2(:,2),PPm_panel2(:,3),1,h,'filled');
 hold off
 colormap(jet);
+xlabel ('X (m)')
+ylabel ('Y (m)')
+zlabel ('Z (m)')
 axis equal
-xlim([-5 5]);  
-ylim([-5 5]);
+view([1,1,1])
+xlim([-6 6]);  
+ylim([-6 6]);
 zlim([-4 4]);
 title('Pointcloud of KOMPSAT-1 Model')
 figure
@@ -50,7 +54,7 @@ title('Pointcloud Model')
 xlim([-5 5]);   % x축 범위를 -5에서 5로 설정
 ylim([-5 5]);   % y축 범위를 -5에서 5로 설정
 zlim([-4 4]);
-%%
+%% 비동차항 먼저
 syms x;
 syms y;
 syms z;
@@ -86,7 +90,13 @@ scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),'r');
 hold off
 axis equal
 title('Initial')
+%% 그냥 좌표 평균 찾기 겸 점 초기세팅
 
+center_shift = median(PPm_use,1);
+PPm_shift = PPm_use - center_shift;
+
+shiftResidue = shiftReal.'
+shiftResidue = shiftResidue - center_shift.'
 
 %%
 %shifted_f = subs(poly, [x, y, z], [x - a, y - b, z - c])
@@ -107,15 +117,13 @@ d3_numeric = matlabFunction(difz, 'Vars', {[x, y, z], betaB});
 
 [beta_values,error]    = regressionFourthOrder(PPm_use,TermsB);
 
-
- % 초기 PPm 설정
-%한번만 하면 됨. 
-PPm_shift = PPm_use; 
-shiftResidue = shiftReal.';
-
 error_shift = error;  % 초기 에러 설정
+
+shiftSet = [];
+shift1Set = [];
 shiftResidueSet = [];
 numIterations = 40;  % 반복 횟수 설정
+
 
 
 
