@@ -1,5 +1,5 @@
 %2024 08 20
-PP01 = generateRandomPointsOnHexagonPrism(3000)+randn(3000,3)*0.0007;
+PP01 = generateRandomPointsOnHexagonPrism(30000)+randn(30000,3)*0.0007;
 PP02 = generateRandomPointsOnCube(1000)+randn(1000,3)*0.0005;
 PP03 = generateRandomPointsOnCylinder(70)+randn(70,3)*0.0005;
 PP04 = generateRandomPointsOnCube(200);
@@ -8,14 +8,14 @@ PPm_body = PP01 ;
 PPm_body(:,1) = PPm_body(:,1) * 0.576;
 PPm_body(:,2) = PPm_body(:,2) * 0.576;
 PPm_body(:,3) = PPm_body(:,3) * 1.165;
-PPm_body = PPm_body(PPm_body(:,3)>1.5*PPm_body(:,1),:); 
+PPm_body = PPm_body(PPm_body(:,3)-1.5*PPm_body(:,1)>-0.3,:); 
 PPm_body = PPm_body + shiftReal;
 
 %Vector_temp = randn(size(PPm_body,1),3)*1;
 %Vector_temp = Vector_temp ./ vecnorm(Vector_temp,2,2) * 0.3;
 %PPm_body = PPm_body + Vector_temp;
 
-
+%{
 PPm_panel1 = PP02 ;
 PPm_panel1(:,1) = PPm_panel1(:,1) / 16;
 PPm_panel1(:,2) = PPm_panel1(:,2) * 1.25;
@@ -74,7 +74,7 @@ PPm_box3 = PPm_box3 + [-0.2 -0.215 -1.365];
 %PPmm = PPmm + shiftReal;
 %PPm_total=[PPm_body ; PPm_panel1; PPm_panel2;PPm_box1;PPm_EOC;PPm_box2;PPm_box3];
 PPm_total=[PPm_body ; PPm_box1;PPm_EOC;PPm_box2;PPm_box3];
-
+%}
 q= [1 0 0 0];
 %q= [cos(25/57.92) 0 sin(25/57.92) 0];
 rotm= quat2rotm(q);
@@ -102,12 +102,12 @@ zlim([-2 2]);
 syms x;
 syms y;
 syms z;
-order = 6;
+order = 8;
 PPm_use = PPmR_body;
 varName='01';
 %% 그냥 좌표 평균 찾기 겸 점 초기세팅
 
-center_shift = median(PPm_use,1)
+center_shift = mean(PPm_use,1)
 PPm_shift = PPm_use - center_shift;
 
 shiftResidue = shiftReal.';
@@ -141,7 +141,7 @@ f_coeffsA_norm = sum(coeffsA_unused.^2);  % f_obj(a,b,c)
 
 
 %%
-
+initGuess = [0,0,0];
 gradF = gradient(f_coeffsA_norm, [a, b, c]);  
 fNum = matlabFunction(gradF, 'Vars', [a, b, c]);
 fHandle2 = @(var) fNum(var(1), var(2), var(3));
@@ -153,43 +153,33 @@ tic;
 [xSol_B, fval_B, exitflag_B, output_B] = fsolve(fHandle2, initGuess, optionsB);
 toc;
 
-minVal = double(subs(f_coeffsA_norm, [a,b,c], xSol_B.'));
+minVal = double(subs(f_coeffsA_norm, [a,b,c], xSol_B));
 fprintf('해당 해에서의 2-norm^2(비동차항) = %.6f\n', minVal);
 
-%shift 결정하세요
-%그리고 빼고 Residue 랑 PPm 조정하세요
+
+PPm_shiftA = PPm_use - xSol_B;
+f1_substituted = subs(f1_expanded, [a, b, c], xSol_B);
+f1_numeric = matlabFunction(f1_substituted, 'Vars', [x, y, z]);
+f1_partial = @(x,y,z) f1_numeric([x,y,z])-1;
+
+
 %{
-figure
-hold on
-fimplicit3(f1_partial,[-4.5 4.5 -4.5 4.5 -4.5 4.5]);
-hold off
-axis equal
-title('Initial')
-%}
-
-PPm_shiftA = PPm_use - xSol_B.';
-f1_substituted = subs(f1_expanded, [a, b, c], xSol_B.');
-
-f1_numeric = matlabFunction(f1_substituted, 'Vars', {[x, y, z], betaA});
-f1_partial = @(x,y,z) f1_numeric([x,y,z], beta_values0.')-1;
-
-
-
 figure
 
 hold on
 h = PPm_shiftA(:,3);
-view([1,1,1])
-fimplicit3(f1_partial,[-4.5 4.5 -4.5 4.5 -4.5 4.5],'FaceColor', [0.99 0.75 0.12]);
+
+fimplicit3(f1_numeric,[-4.5 4.5 -4.5 4.5 -4.5 4.5],'FaceColor', [0.99 0.75 0.12]);
 scatter3(PPm_shiftA(:,1),PPm_shiftA(:,2),PPm_shiftA(:,3),1,'h','filled');
 hold off
 colormap(jet);
+view([1,1,1])
 xlabel ('X (m)')
 ylabel ('Y (m)')
 zlabel ('Z (m)')
 axis equal
 grid on
-
+%}
 
 %% Iteration 초기 설정
 
@@ -211,11 +201,12 @@ d3_numeric = matlabFunction(difz, 'Vars', {[x, y, z], betaB});
 
 error_shift = error;  % 초기 에러 설정
 
+shift_1= [0;0;0];
 shiftSet = [];
 shift1Set = [];
-shiftResidueSet = [];
+shiftResidueSet = [0;0;0];
 shiftSum = [0 ; 0 ; 0];
-numIterations = 10;  % 반복 횟수 설정
+numIterations = 20;  % 반복 횟수 설정
 shiftSum = center_shift.';
 
 
@@ -277,12 +268,15 @@ for i = 1:numIterations
     dz = d3_numeric(PPm_shift, beta_values.');
     dxyz = [dx dy dz];
 
-    [shift, residual] = regressionShift(PPm_shift, error_shift,dxyz);
-    shiftResidue = shiftResidue + shift;
-    shiftSum = shiftSum - shift ;
+    [shift, residual] = regressionShift(PPm_shift, error_shift,dxyz);% 함수 결과값부터 부호가 반대
+    shift_1 = shift*0.85 + shift_1*0.66;
+    shift1Set= [shift1Set shift_1];    
+    shiftSet = [shiftSet shift];
+    shiftResidue = shiftResidue + shift_1;% 부호가 반대인데 알아서 해석하세요
+    shiftSum = shiftSum - shift_1;
     shiftResidueSet = [shiftResidueSet shiftResidue];
     
-    PPm_shift = PPm_shift + shift.';
+    PPm_shift = PPm_shift + shift_1.';
     [beta_values, error_shift] = regressionFourthOrder(PPm_shift,TermsB);
 
     %0.001s 
@@ -293,7 +287,7 @@ f3_substituted = subs(f2, betaB, beta_values.');
 f3_translated = subs(f3_substituted-1, [x,y,z], [x-shiftSum(1), y-shiftSum(2), z-shiftSum(3)]);
 f3_translated_expanded = expand(f3_translated);
 
-
+%{
 figure
 h2 = scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),1,PPm_use(:,3),'filled');
 colormap(jet);
@@ -306,27 +300,27 @@ ylabel ('Y (m)')
 zlabel ('Z (m)')
 view([1, 1, 1]);
 axis equal
+%}
 
-%함수 평가 
 equation2string(beta_values, TermsB);
 sum(beta_values);
 
-f2_handle(0,+0.866,0)+1
-f2_handle(1,0,0)+1
-f2_handle(-0.5,-0.866,0)+1
-f2_handle(-0.5,-0.866,1)+1
+f2_handle(0,+0.866,0)+1;
+f2_handle(1,0,0)+1;
+f2_handle(-0.5,-0.866,0)+1;
+f2_handle(-0.5,-0.866,1)+1;
 %norm(error_shift,1)
 %evaluateModel(PPm_shift,f2_numeric, beta_values)
 
-%{
-figure
+
+%figure
 subplot(1,3,1)
 plot(shiftResidueSet(1,:))
 subplot(1,3,2)
 plot(shiftResidueSet(2,:))
 subplot(1,3,3)
 plot(shiftResidueSet(3,:))
-%}
+
 %%
 %{
 threshold = prctile(error_shift, 10); % 하위 15%에 해당하는 값 (15th percentile)
