@@ -75,9 +75,9 @@ PPm_box3 = PPm_box3 + [-0.2 -0.215 -1.365];
 %PPm_total=[PPm_body ; PPm_panel1; PPm_panel2;PPm_box1;PPm_EOC;PPm_box2;PPm_box3];
 PPm_total=[PPm_body ; PPm_box1;PPm_EOC;PPm_box2;PPm_box3];
 %}
-q= [1 0 0 0];
-%q= [cos(25/57.92) 0 sin(25/57.92) 0];
-rotm= quat2rotm(q);
+%q= [1 0 0 0];
+qo= [cos(17/57.92) sin(17/57.92)  0 0];
+rotm= quat2rotm(qo);
 PPmR_body = PPm_body * rotm.';
 
 
@@ -102,7 +102,7 @@ zlim([-2 2]);
 syms x;
 syms y;
 syms z;
-order = 8;
+order = 6;
 PPm_use = PPmR_body;
 varName='01';
 %% 그냥 좌표 평균 찾기 겸 점 초기세팅
@@ -131,7 +131,7 @@ f1_expanded = expand(f1_shift);
 coeffsA_unused = sym([]);
 for k = 1:length(monomialA)
     deg = feval(symengine, 'degree', monomialA(k), x)+feval(symengine, 'degree', monomialA(k), y)+feval(symengine, 'degree', monomialA(k), z);
-    if deg ~= order
+    if deg ~= order & deg ~= 0
        coeffsA_unused(end+1) = coeffsA(k);  
     end
 end
@@ -150,19 +150,20 @@ optionsB = optimoptions('fsolve', ...
     'MaxIterations', 1000, ...
     'MaxFunctionEvaluations', 3000);
 tic;
-[xSol_B, fval_B, exitflag_B, output_B] = fsolve(fHandle2, initGuess, optionsB);
+[xSol_A, fval_A, exitflag_B, output_B] = fsolve(fHandle2, initGuess, optionsB);
 toc;
 
-minVal = double(subs(f_coeffsA_norm, [a,b,c], xSol_B));
+minVal = double(subs(f_coeffsA_norm, [a,b,c], xSol_A));
 fprintf('해당 해에서의 2-norm^2(비동차항) = %.6f\n', minVal);
 
 
-PPm_shiftA = PPm_use - xSol_B;
-f1_substituted = subs(f1_expanded, [a, b, c], xSol_B);
-f1_numeric = matlabFunction(f1_substituted, 'Vars', [x, y, z]);
-f1_partial = @(x,y,z) f1_numeric([x,y,z])-1;
+PPm_shiftA = PPm_use - xSol_A;
+f1_substituted = subs(f1_expanded, [a, b, c], xSol_A);
+f1_numeric = matlabFunction(f1_substituted-1, 'Vars', [x, y, z]);
 
 
+[coeffsA2, monomialA2] =coeffs(f1_substituted-1);
+coeffsA2=double(coeffsA2);
 %{
 figure
 
@@ -206,35 +207,19 @@ shiftSet = [];
 shift1Set = [];
 shiftResidueSet = [0;0;0];
 shiftSum = [0 ; 0 ; 0];
-numIterations = 20;  % 반복 횟수 설정
+numIterations = 60;  % 반복 횟수 설정
 shiftSum = center_shift.';
 
 
 %% 그림 그리기_initial  
 f2_partial = @(x,y,z) f2_numeric([x,y,z], beta_values.')-1;
 f2_substituted = subs(f2, betaB, beta_values.');
-f2_translated = subs(f2_substituted-1, [x,y,z], [x-center_shift(1), y-center_shift(2), z-center_shift(3)]);
+f2_translated = subs(f2_substituted-1, [x,y,z], [x-center_shift(1), y-center_shift(2), z-center_shift(3)]);%여기서 1 뺌
 f2_translated_expanded = expand(f2_translated);
 f2_handle = matlabFunction(f2_translated_expanded, 'Vars', [x,y,z]);
 [coeffs1, monomial] = coeffs(f2_partial , [x,y,z]);
 %coeffs(f2_substituted , [x,y,z])
 
-%{
-figure
-h2 = scatter3(PPm_shift(:,1),PPm_shift(:,2),PPm_shift(:,3),1,PPm_shift(:,3),'filled');
-colormap(jet);
-hold on
-h1 = fimplicit3(f2_partial,[-6 6 -6 6 -6 6],'FaceColor', [0.99 0.75 0.12]);
-hold off
-
-xlabel ('X (m)')
-ylabel ('Y (m)')
-zlabel ('Z (m)')
-view([1, 1, 1]);
-axis equal
-%title('Pointcloud Model - Panel')
-%title('Pointcloud Model - Body')
-%}
 %{
 figure
 h2 = scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),1,PPm_use(:,3),'filled');
@@ -250,11 +235,6 @@ view([1, 1, 1]);
 axis equal
 %title('Pointcloud Model - Panel')
 %}
-
-
-
-%% 
-% 회전탐지
 
 
 
@@ -285,7 +265,7 @@ end
 
 f3_substituted = subs(f2, betaB, beta_values.');
 f3_translated = subs(f3_substituted-1, [x,y,z], [x-shiftSum(1), y-shiftSum(2), z-shiftSum(3)]);
-f3_translated_expanded = expand(f3_translated);
+f3_translated_expanded =expand(f3_translated);
 
 %{
 figure
@@ -302,6 +282,20 @@ view([1, 1, 1]);
 axis equal
 %}
 
+figure
+h2 = scatter3(PPm_shift(:,1),PPm_shift(:,2),PPm_shift(:,3),1,PPm_shift(:,3),'filled');
+colormap(jet);
+hold on
+h1 = fimplicit3(f3_substituted-1,[-6 6 -6 6 -6 6],'FaceColor', [0.05, 0.2, 0.5]);
+hold off
+
+xlabel ('X (m)')
+ylabel ('Y (m)')
+zlabel ('Z (m)')
+view([1, 1, 1]);
+axis equal
+
+
 equation2string(beta_values, TermsB);
 sum(beta_values);
 
@@ -313,57 +307,83 @@ f2_handle(-0.5,-0.866,1)+1;
 %evaluateModel(PPm_shift,f2_numeric, beta_values)
 
 
-%figure
+figure(1)
 subplot(1,3,1)
 plot(shiftResidueSet(1,:))
 subplot(1,3,2)
 plot(shiftResidueSet(2,:))
 subplot(1,3,3)
 plot(shiftResidueSet(3,:))
+%% 
+syms q0 q1 q2 q3 real
 
-%%
-%{
-threshold = prctile(error_shift, 10); % 하위 15%에 해당하는 값 (15th percentile)
+% 간단히 벡터화
+q = [q0; q1; q2; q3];
 
-% 2. 조건을 만족하는 인덱스 찾기
-selectedIdx = find(error_shift <= threshold); % 하위 15% 선택
+% 회전행렬 R(q) 정의
+Rq = [ q0^2+q1^2-q2^2-q3^2, 2*(q1*q2 - q0*q3),     2*(q1*q3 + q0*q2);
+       2*(q2*q1 + q0*q3),   q0^2 - q1^2 + q2^2 - q3^2, 2*(q2*q3 - q0*q1);
+       2*(q3*q1 - q0*q2),   2*(q3*q2 + q0*q1),     q0^2 - q1^2 - q2^2 + q3^2 ];
 
-% 3. 새로운 PPm_out 생성
-PPm_out = PPm_shift(selectedIdx, :); % 조건을 만족하는 점만 선택
-[beta_values,error]    = regressionFourthOrder(PPm_out,TermsB);
-f2_partial = @(x,y,z) f2_numeric([x,y,z], beta_values.')-1;
+xr = Rq(1,1)*x + Rq(1,2)*y + Rq(1,3)*z;
+yr = Rq(2,1)*x + Rq(2,2)*y + Rq(2,3)*z;
+zr = Rq(3,1)*x + Rq(3,2)*y + Rq(3,3)*z;
+tic
+f4_rotated = subs(f3_substituted, [x,y,z], [xr,yr,zr]);%중심에 있는 f3를 회전
+toc
+%tic
+%f4_expanded = expand(f4_rotated);
+%toc
+[coeffsB, monomialB] = coeffs(f4_rotated , [x,y,z]);
+coeffsB_unused = sym([]);
+monList = [
+  0 6 0;
+  2 4 0;   
+  4 2 0;
+  6 0 0;   
+  0 0 6;
+];
 
-f3_substituted = subs(f2, betaB, beta_values.');
-f3_translated = subs(f3_substituted-1, [x,y,z], [x-shiftSum(1), y-shiftSum(2), z-shiftSum(3)]);
-f3_translated_expanded = expand(f3_translated);
+for k = 1:length(monomialB) %안쓰는 항들의 계수 norm 구하기
+    degx = feval(symengine, 'degree', monomialB(k), x);
+    degy = feval(symengine, 'degree', monomialB(k), y);
+    degz = feval(symengine, 'degree', monomialB(k), z);
+    if ~ismember([degx, degy, degz], monList, 'rows');
+       coeffsB_unused(end+1) = coeffsB(k);  
+    end
+end
 
-%{
+f_coeffsB_norm = sum(coeffsB_unused.^2);  % f_obj(a,b,c)
+
+fNum = matlabFunction(f_coeffsB_norm, 'Vars', [q0, q1, q2, q3]);
+fHandle3 = @(var) fNum(var(1), var(2), var(3), var(4));
+nonlcon = @(qVec) deal([],qVec'*qVec - 1);  
+
+
+initQ = [1; 0; 0; 0];
+optionsC = optimoptions('fmincon','Display','iter');
+
+[qOpt, fValB] = fmincon(@(qIn) fHandle3 (qIn), ...
+                       initQ,[],[],[],[],[],[], nonlcon, optionsC)
+qOpt = qOpt / norm(qOpt);  % safety normalize
+
+
+%대입
+f4_substituted = subs(f4_rotated, [q0,q1,q2,q3], qOpt.');%중심에 있는 f3를 회전
+Rq4 = double(subs(Rq,[q0,q1,q2,q3],[qOpt(1),-qOpt(2),-qOpt(3),-qOpt(4)]));
+PPm_shiftB = (Rq4 * PPm_shift.').'; 
+f4_numeric = matlabFunction(f4_substituted-1, 'Vars', [x, y, z]);
+[coeffsB2, monomialB2] = coeffs(f4_substituted , [x,y,z]);
+coeffsB2 = double(coeffsB2);
+
 figure
-h2 = scatter3(PPm_out(:,1),PPm_out(:,2),PPm_out(:,3),1,PPm_out(:,3),'filled');
-colormap(jet);
 hold on
-h1 = fimplicit3(f2_partial,[-6 6 -6 6 -6 6],'FaceColor', [0.99 0.75 0.12]);
+scatter3(PPm_shiftB(:,1),PPm_shiftB(:,2),PPm_shiftB(:,3),1,PPm_shiftB(:,3),'filled');
+fimplicit3(f4_numeric,[-2 2 -2 2 -2 2],'FaceColor', [0.05, 0.2, 0.5]);
 hold off
-
+colormap(jet);
 xlabel ('X (m)')
 ylabel ('Y (m)')
 zlabel ('Z (m)')
 view([1, 1, 1]);
 axis equal
-%}
-%{
-figure
-h2 = scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),1,PPm_use(:,3),'filled');
-colormap(jet);
-hold on
-h1 = fimplicit3(f3_translated_expanded,[-6 6 -6 6 -6 6],'FaceColor', [0.99 0.75 0.12]);
-hold off
-
-xlabel ('X (m)')
-ylabel ('Y (m)')
-zlabel ('Z (m)')
-view([1, 1, 1]);
-axis equal
-%}
-%save(['equation_' varName '_margin.mat'], 'f3_translated_expanded');
-%}
