@@ -1,16 +1,22 @@
 %2024 08 20
 PP01 = generateRandomPointsOnHexagonPrism(30000)+randn(30000,3)*0.0007;
 PP02 = generateRandomPointsOnCube(1000)+randn(1000,3)*0.0005;
-PP03 = generateRandomPointsOnCylinder(70)+randn(70,3)*0.0005;
+PP03 = generateRandomPointsOnCylinder(7000)+randn(7000,3)*0.0005;
 PP04 = generateRandomPointsOnCube(200);
-shiftReal =  [0.5 -1 -0.30];
+shiftReal =  [-3 -0 56];
 PPm_body = PP01 ;
 PPm_body(:,1) = PPm_body(:,1) * 0.576;
 PPm_body(:,2) = PPm_body(:,2) * 0.576;
 PPm_body(:,3) = PPm_body(:,3) * 1.165;
-PPm_body = PPm_body(PPm_body(:,3)-1.5*PPm_body(:,1)>-0.3,:); 
+PPm_body = PPm_body(PPm_body(:,3)-1.5*PPm_body(:,1)>-0.6,:); 
 PPm_body = PPm_body + shiftReal;
 
+PPm_cyl = PP03 ;
+PPm_cyl(:,1) = PPm_cyl(:,1) * 0.6;
+PPm_cyl(:,2) = PPm_cyl(:,2) * 0.6;
+PPm_cyl(:,3) = PPm_cyl(:,3) * 1.165;
+PPm_cyl = PPm_cyl(PPm_cyl(:,2)>-0.05&PPm_cyl(:,3)>-1.1,:); 
+PPm_cyl = PPm_cyl + shiftReal;
 %Vector_temp = randn(size(PPm_body,1),3)*1;
 %Vector_temp = Vector_temp ./ vecnorm(Vector_temp,2,2) * 0.3;
 %PPm_body = PPm_body + Vector_temp;
@@ -76,7 +82,7 @@ PPm_box3 = PPm_box3 + [-0.2 -0.215 -1.365];
 PPm_total=[PPm_body ; PPm_box1;PPm_EOC;PPm_box2;PPm_box3];
 %}
 %q= [1 0 0 0];
-qo= [cos(17/57.92) sin(17/57.92)  0 0];
+qo= [cos(17/57.92) sin(17/57.92)*cos(45/57.92) 0 sin(17/57.92)*sin(45/57.92)];
 rotm= quat2rotm(qo);
 PPmR_body = PPm_body * rotm.';
 
@@ -104,7 +110,7 @@ syms y;
 syms z;
 order = 6;
 PPm_use = PPmR_body;
-varName='01';
+varName='body';
 %% 그냥 좌표 평균 찾기 겸 점 초기세팅
 
 center_shift = mean(PPm_use,1)
@@ -126,7 +132,7 @@ f1_total   = subs(f1,betaA,beta_values0.');
 syms a b c 
 f1_shift = subs(f1_total, [x, y, z], [x+a, y+b, z+c]);
 f1_expanded = expand(f1_shift);
-[coeffsA, monomialA] = coeffs(f1_expanded , [x,y,z]);
+[coeffsA, monomialA] = coeffs(f1_shift , [x,y,z]);
 
 coeffsA_unused = sym([]);
 for k = 1:length(monomialA)
@@ -161,17 +167,21 @@ PPm_shiftA = PPm_use - xSol_A;
 f1_substituted = subs(f1_expanded, [a, b, c], xSol_A);
 f1_numeric = matlabFunction(f1_substituted-1, 'Vars', [x, y, z]);
 
-
+f1_origin_numeric = matlabFunction(f1_total-1, 'Vars', [x, y, z]);
 [coeffsA2, monomialA2] =coeffs(f1_substituted-1);
 coeffsA2=double(coeffsA2);
 %{
 figure
 
-hold on
-h = PPm_shiftA(:,3);
 
-fimplicit3(f1_numeric,[-4.5 4.5 -4.5 4.5 -4.5 4.5],'FaceColor', [0.99 0.75 0.12]);
-scatter3(PPm_shiftA(:,1),PPm_shiftA(:,2),PPm_shiftA(:,3),1,'h','filled');
+%h = PPm_shiftA(:,3);
+
+%fimplicit3(f1_numeric,[-4.5 4.5 -4.5 4.5 -4.5 54.5],'FaceColor', [0.99 0.75 0.12]);
+%scatter3(PPm_shiftA(:,1),PPm_shiftA(:,2),PPm_shiftA(:,3),1,'h','filled');
+scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),1,PPm_use(:,3),'filled');
+hold on
+fimplicit3(f1_origin_numeric,[-6 2 -3.5 3.5 53.5 59.5],'FaceColor', [0.99 0.75 0.12]);
+
 hold off
 colormap(jet);
 view([1,1,1])
@@ -207,8 +217,10 @@ shiftSet = [];
 shift1Set = [];
 shiftResidueSet = [0;0;0];
 shiftSum = [0 ; 0 ; 0];
-numIterations = 60;  % 반복 횟수 설정
+numIterations = 20;  % 반복 횟수 설정
 shiftSum = center_shift.';
+
+
 
 
 %% 그림 그리기_initial  
@@ -293,8 +305,9 @@ xlabel ('X (m)')
 ylabel ('Y (m)')
 zlabel ('Z (m)')
 view([1, 1, 1]);
-axis equal
 
+axis equal
+axis([-1.2 1.2 -1.2 1.2 -1.2 1.2])
 
 equation2string(beta_values, TermsB);
 sum(beta_values);
@@ -305,7 +318,10 @@ f2_handle(-0.5,-0.866,0)+1;
 f2_handle(-0.5,-0.866,1)+1;
 %norm(error_shift,1)
 %evaluateModel(PPm_shift,f2_numeric, beta_values)
+%
 
+%saveas(gcf,'image_ksas\RotHexagon_fit.svg')
+%savefig(gcf,'image_ksas\RotHexagon_fit_.fig')
 
 figure(1)
 subplot(1,3,1)
@@ -387,3 +403,4 @@ ylabel ('Y (m)')
 zlabel ('Z (m)')
 view([1, 1, 1]);
 axis equal
+grid on
