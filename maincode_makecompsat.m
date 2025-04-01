@@ -1,15 +1,14 @@
 %2024 08 20
-PP01 = generateRandomPointsOnHexagonPrism(30000)+randn(30000,3)*0.0007;
+PP01 = generateRandomPointsOnHexagonPrism(30000)+randn(30000,3)*0.04;
 PP02 = generateRandomPointsOnCube(1000)+randn(1000,3)*0.0005;
 PP03 = generateRandomPointsOnCylinder(7000)+randn(7000,3)*0.0005;
 PP04 = generateRandomPointsOnCube(200);
-shiftReal =  [-3 -0 56];
+shiftReal =  [-3 -0 36];
 PPm_body = PP01 ;
 PPm_body(:,1) = PPm_body(:,1) * 0.576;
 PPm_body(:,2) = PPm_body(:,2) * 0.576;
 PPm_body(:,3) = PPm_body(:,3) * 1.165;
-PPm_body = PPm_body(PPm_body(:,3)-1.5*PPm_body(:,1)>-0.6,:); 
-PPm_body = PPm_body + shiftReal;
+PPm_body = PPm_body(PPm_body(:,3)-1.5*PPm_body(:,1)>0.2,:); 
 
 PPm_cyl = PP03 ;
 PPm_cyl(:,1) = PPm_cyl(:,1) * 0.6;
@@ -85,24 +84,8 @@ PPm_total=[PPm_body ; PPm_box1;PPm_EOC;PPm_box2;PPm_box3];
 qo= [cos(17/57.92) sin(17/57.92)*cos(45/57.92) 0 sin(17/57.92)*sin(45/57.92)];
 rotm= quat2rotm(qo);
 PPmR_body = PPm_body * rotm.';
+PPmR_body = PPmR_body + shiftReal;
 
-
-%{
-figure
-h = PPm_total(:,3);
-scatter3(PPm_total(:,1),PPm_total(:,2),PPm_total(:,3),1,h,'filled');
-colormap(jet);
-xlabel ('X (m)')
-ylabel ('Y (m)')
-zlabel ('Z (m)')
-axis equal
-grid on
-view([1,1,1])
-xlim([-2 2]);  
-ylim([-4 4]);
-zlim([-2 2]);
-%title('Pointcloud of KOMPSAT-1 Model')
-%}
 
 %% 
 syms x;
@@ -111,6 +94,21 @@ syms z;
 order = 6;
 PPm_use = PPmR_body;
 varName='body';
+
+%{
+figure
+scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),1,PPm_use,'filled');
+colormap(jet);
+xlabel ('X (m)')
+ylabel ('Y (m)')
+zlabel ('Z (m)')
+axis equal
+grid on
+view([1,1,1])
+
+%}
+
+
 %% 그냥 좌표 평균 찾기 겸 점 초기세팅
 
 center_shift = mean(PPm_use,1)
@@ -127,23 +125,27 @@ f1 = sum(betaA .* TermsA);
 
 %점 입력
 
-[beta_values0,error0]    = regressionFourthOrder(PPm_use,TermsA);
+[beta_values0,error0]    = regressionFourthOrder(PPm_shift,TermsA);
 f1_total   = subs(f1,betaA,beta_values0.');
+ErrorValue0= norm(error0,1);
+
 syms a b c 
+
 f1_shift = subs(f1_total, [x, y, z], [x+a, y+b, z+c]);
-f1_expanded = expand(f1_shift);
+%f1_expanded = expand(f1_shift);
 [coeffsA, monomialA] = coeffs(f1_shift , [x,y,z]);
 
 coeffsA_unused = sym([]);
 for k = 1:length(monomialA)
+    
     deg = feval(symengine, 'degree', monomialA(k), x)+feval(symengine, 'degree', monomialA(k), y)+feval(symengine, 'degree', monomialA(k), z);
     if deg ~= order & deg ~= 0
        coeffsA_unused(end+1) = coeffsA(k);  
     end
+    
 end
 
 f_coeffsA_norm = sum(coeffsA_unused.^2);  % f_obj(a,b,c)
-
 
 
 %%
@@ -163,24 +165,25 @@ minVal = double(subs(f_coeffsA_norm, [a,b,c], xSol_A));
 fprintf('해당 해에서의 2-norm^2(비동차항) = %.6f\n', minVal);
 
 
-PPm_shiftA = PPm_use - xSol_A;
-f1_substituted = subs(f1_expanded, [a, b, c], xSol_A);
+PPm_shiftA = PPm_use -center_shift- xSol_A;
+f1_substituted = subs(f1_shift, [a, b, c], xSol_A);
 f1_numeric = matlabFunction(f1_substituted-1, 'Vars', [x, y, z]);
 
-f1_origin_numeric = matlabFunction(f1_total-1, 'Vars', [x, y, z]);
+f1_reverse_substituted = subs(f1_shift, [a, b, c], -center_shift);
+f1_origin_numeric = matlabFunction(f1_reverse_substituted-1, 'Vars', [x, y, z]);
+
 [coeffsA2, monomialA2] =coeffs(f1_substituted-1);
 coeffsA2=double(coeffsA2);
 %{
 figure
 
 
-%h = PPm_shiftA(:,3);
-
-%fimplicit3(f1_numeric,[-4.5 4.5 -4.5 4.5 -4.5 54.5],'FaceColor', [0.99 0.75 0.12]);
-%scatter3(PPm_shiftA(:,1),PPm_shiftA(:,2),PPm_shiftA(:,3),1,'h','filled');
+%fimplicit3(f1_numeric,[-4.5 4.5 -4.5 4.5 -3.5 4.5],'FaceColor', [0.99 0.75 0.12]);
+%hold on
+%scatter3(PPm_shiftA(:,1),PPm_shiftA(:,2),PPm_shiftA(:,3),1,PPm_shiftA(:,3),'filled');
 scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),1,PPm_use(:,3),'filled');
 hold on
-fimplicit3(f1_origin_numeric,[-6 2 -3.5 3.5 53.5 59.5],'FaceColor', [0.99 0.75 0.12]);
+fimplicit3(f1_origin_numeric,[-6 2 -3.5 3.5 32.5 39.5],'FaceColor', [0.99 0.75 0.12]);
 
 hold off
 colormap(jet);
@@ -211,13 +214,14 @@ d3_numeric = matlabFunction(difz, 'Vars', {[x, y, z], betaB});
 [beta_values,error]    = regressionFourthOrder(PPm_shift,TermsB);
 
 error_shift = error;  % 초기 에러 설정
+ErrorValue1= norm(error,1);
 
 shift_1= [0;0;0];
 shiftSet = [];
 shift1Set = [];
 shiftResidueSet = [0;0;0];
 shiftSum = [0 ; 0 ; 0];
-numIterations = 20;  % 반복 횟수 설정
+numIterations = 10;  % 반복 횟수 설정
 shiftSum = center_shift.';
 
 
@@ -227,8 +231,7 @@ shiftSum = center_shift.';
 f2_partial = @(x,y,z) f2_numeric([x,y,z], beta_values.')-1;
 f2_substituted = subs(f2, betaB, beta_values.');
 f2_translated = subs(f2_substituted-1, [x,y,z], [x-center_shift(1), y-center_shift(2), z-center_shift(3)]);%여기서 1 뺌
-f2_translated_expanded = expand(f2_translated);
-f2_handle = matlabFunction(f2_translated_expanded, 'Vars', [x,y,z]);
+f2_handle = matlabFunction(f2_translated, 'Vars', [x,y,z]);
 [coeffs1, monomial] = coeffs(f2_partial , [x,y,z]);
 %coeffs(f2_substituted , [x,y,z])
 
@@ -237,7 +240,7 @@ figure
 h2 = scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),1,PPm_use(:,3),'filled');
 colormap(jet);
 hold on
-h1 = fimplicit3(f2_translated_expanded,[-6 6 -6 6 -6 6],'FaceColor', [0.99 0.75 0.12]);
+h1 = fimplicit3(f2_translated,[-6 6 -6 6 -6 46],'FaceColor', [0.99 0.75 0.12]);
 hold off
 
 xlabel ('X (m)')
@@ -270,21 +273,21 @@ for i = 1:numIterations
     
     PPm_shift = PPm_shift + shift_1.';
     [beta_values, error_shift] = regressionFourthOrder(PPm_shift,TermsB);
-
+    
     %0.001s 
     
 end
+ErrorValue2= norm(error_shift,1);
 
 f3_substituted = subs(f2, betaB, beta_values.');
 f3_translated = subs(f3_substituted-1, [x,y,z], [x-shiftSum(1), y-shiftSum(2), z-shiftSum(3)]);
-f3_translated_expanded =expand(f3_translated);
 
 %{
 figure
 h2 = scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),1,PPm_use(:,3),'filled');
 colormap(jet);
 hold on
-h1 = fimplicit3(f3_translated_expanded,[-6 6 -6 6 -6 6],'FaceColor', [0.05, 0.2, 0.5]);
+h1 = fimplicit3(f3_translated,[-6 6 -6 6 -36 36],'FaceColor', [0.05, 0.2, 0.5]);
 hold off
 
 xlabel ('X (m)')
@@ -309,13 +312,10 @@ view([1, 1, 1]);
 axis equal
 axis([-1.2 1.2 -1.2 1.2 -1.2 1.2])
 
-equation2string(beta_values, TermsB);
-sum(beta_values);
+%equation2string(beta_values, TermsB);
+%sum(beta_values);
 
-f2_handle(0,+0.866,0)+1;
-f2_handle(1,0,0)+1;
-f2_handle(-0.5,-0.866,0)+1;
-f2_handle(-0.5,-0.866,1)+1;
+
 %norm(error_shift,1)
 %evaluateModel(PPm_shift,f2_numeric, beta_values)
 %
@@ -344,9 +344,9 @@ Rq = [ q0^2+q1^2-q2^2-q3^2, 2*(q1*q2 - q0*q3),     2*(q1*q3 + q0*q2);
 xr = Rq(1,1)*x + Rq(1,2)*y + Rq(1,3)*z;
 yr = Rq(2,1)*x + Rq(2,2)*y + Rq(2,3)*z;
 zr = Rq(3,1)*x + Rq(3,2)*y + Rq(3,3)*z;
-tic
+
 f4_rotated = subs(f3_substituted, [x,y,z], [xr,yr,zr]);%중심에 있는 f3를 회전
-toc
+
 %tic
 %f4_expanded = expand(f4_rotated);
 %toc
