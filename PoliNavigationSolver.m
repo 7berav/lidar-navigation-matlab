@@ -1,5 +1,5 @@
 %2025 03 31
-function [ResultDisp, ResultRot,Beta] = PoliNavigationSolver(isGlobalApproach, PPcoord, order)
+function [ResultDisp, ResultRot,Beta] = PoliNavigationSolver(isGlobalApproach, PPcoord, order,qinit)
     syms x;
     syms y;
     syms z;
@@ -8,7 +8,7 @@ function [ResultDisp, ResultRot,Beta] = PoliNavigationSolver(isGlobalApproach, P
 
     center_shift = mean(PPm_use,1);
     PPm_shift = PPm_use - center_shift;
-    
+
     if isGlobalApproach
         [ResultDisp0, Beta] = DisplacementGlobal(PPm_shift,order);
         ResultDisp = ResultDisp0 + center_shift;
@@ -16,10 +16,9 @@ function [ResultDisp, ResultRot,Beta] = PoliNavigationSolver(isGlobalApproach, P
         [ResultDisp0, Beta] = DisplacementLocal(PPm_shift,order);
         ResultDisp = ResultDisp0 + center_shift;
     end
-    
-    
-    ResultRot = Rotation(Beta,order);
-    
+
+    ResultRot = Rotation(Beta,order,qinit);
+
 end
 
 function [DispOut, Beta] =  DisplacementGlobal(coord,order)
@@ -128,7 +127,7 @@ function [DispOut, Beta] = DisplacementLocal(coord,order)
 end
   
 
-function QOut = Rotation(Beta, order)
+function QOut = Rotation(Beta, order,qinit)
     syms q0 q1 q2 q3 real
     syms x y z
     % 간단히 벡터화
@@ -173,9 +172,10 @@ function QOut = Rotation(Beta, order)
     nonlcon = @(qVec) deal([],qVec'*qVec - 1);  
     
     
-    initQ = [1; 0; 0; 0];
-    optionsC = optimoptions('fmincon','Display','iter','Algorithm','sqp',...
-        'OptimalityTolerance',1e-4,'ConstraintTolerance',1e-4,'MaxIterations',12);
+    %initQ = [1; 0; 0; 0];
+    initQ = qinit;
+    optionsC = optimoptions('fmincon','Display','none','Algorithm','interior-point',...
+        'OptimalityTolerance',3e-4,'ConstraintTolerance',1e-4,'MaxIterations',12);
     
     [qOpt, fValB] = fmincon(@(qIn) fHandle3 (qIn), ...
                            initQ,[],[],[],[],[],[], nonlcon, optionsC);
