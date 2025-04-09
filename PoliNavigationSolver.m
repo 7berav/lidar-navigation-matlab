@@ -1,5 +1,5 @@
 %2025 03 31
-function [ResultDisp, ResultRot,Beta] = PoliNavigationSolver(isGlobalApproach, PPcoord, order,qinit)
+function [ResultDisp, ResultRot,Beta] = PoliNavigationSolver(isGlobalApproach, PPcoord, order,binit,qinit)
     syms x;
     syms y;
     syms z;
@@ -17,7 +17,7 @@ function [ResultDisp, ResultRot,Beta] = PoliNavigationSolver(isGlobalApproach, P
         ResultDisp = ResultDisp0 + center_shift;
     end
 
-    ResultRot = Rotation(Beta,order,qinit);
+    ResultRot = Rotation(Beta,order,binit,qinit);
 
 end
 
@@ -127,7 +127,7 @@ function [DispOut, Beta] = DisplacementLocal(coord,order)
 end
   
 
-function QOut = Rotation(Beta, order,qinit)
+function QOut = Rotation(Beta, order,binit,qinit)
     syms q0 q1 q2 q3 real
     syms x y z
     % 간단히 벡터화
@@ -148,6 +148,7 @@ function QOut = Rotation(Beta, order,qinit)
     
     [coeffsB, monomialB] = coeffs(f4_rotated , [x,y,z]);
     coeffsB_unused = sym([]);
+    %{
     monList = [
       0 6 0;
       2 4 0;   
@@ -155,7 +156,8 @@ function QOut = Rotation(Beta, order,qinit)
       6 0 0;   
       0 0 6;
     ];
-    
+    %}
+    %{
     for k = 1:length(monomialB) %안쓰는 항들의 계수 norm 구하기
         degx = feval(symengine, 'degree', monomialB(k), x);
         degy = feval(symengine, 'degree', monomialB(k), y);
@@ -164,7 +166,11 @@ function QOut = Rotation(Beta, order,qinit)
            coeffsB_unused(end+1) = coeffsB(k);  
         end
     end
-    
+    %}
+    for k = 1:length(monomialB) %안쓰는 항들의 계수 norm 구하기
+        coeffsB_unused(end+1) = coeffsB(k)-binit(k);  
+        
+    end
     f_coeffsB_norm = sum(coeffsB_unused.^2);  % f_obj(a,b,c)
     
     fNum = matlabFunction(f_coeffsB_norm, 'Vars', [q0, q1, q2, q3]);
@@ -175,7 +181,7 @@ function QOut = Rotation(Beta, order,qinit)
     %initQ = [1; 0; 0; 0];
     initQ = qinit;
     optionsC = optimoptions('fmincon','Display','none','Algorithm','interior-point',...
-        'OptimalityTolerance',3e-4,'ConstraintTolerance',1e-4,'MaxIterations',12);
+        'OptimalityTolerance',3e-4,'ConstraintTolerance',1e-4,'MaxIterations',14,'UseParallel',false);
     
     [qOpt, fValB] = fmincon(@(qIn) fHandle3 (qIn), ...
                            initQ,[],[],[],[],[],[], nonlcon, optionsC);

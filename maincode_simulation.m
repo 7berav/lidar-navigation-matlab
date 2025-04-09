@@ -70,13 +70,19 @@ quater0= [quater0 ;cos(w*t), sin(w*t)*n(1), sin(w*t)*n(2), sin(w*t)*n(3)];
 
 
 %%
-
+syms x y z
+TermsB = homogeneTerm(order);
+FuncsB = matlabFunction(TermsB);
 Qinit = [1;0;0;0];
-Array_Disp=[];
-Array_QB=[];
-Array_BetaB=[];
+Array_Disp=zeros(200,4);
+Array_QB=zeros(200,5);
+Array_BetaB=zeros(200,29);
 
-for i= 170:300
+[beta_values,error]  = regressionFourthOrder( PP01,FuncsB);
+   
+Binit = beta_values.';
+tic
+for i= 171:180
     PP01 = generateRandomPointsOnHexagonPrism(100)+randn(100,3)*0.02;
     PPm_body = PP01 ;
     PPm_body(:,1) = PPm_body(:,1) * 0.576;
@@ -86,18 +92,18 @@ for i= 170:300
     rotm= quat2rotm(quater0(i,:));
     PPmR_body = PPm_body * rotm.';
     PP_use = PPmR_body - [Orbit(i,2), Orbit(i,3),0];
-    disp(i)
-    tic
-    [DispB,QB,BetaB] = PoliNavigationSolver(0,PP_use,6,Qinit);
-    toc
-    
-    Array_Disp=[Array_Disp ; Orbit(i,1), DispB];
-    Array_QB=[Array_QB ;  Orbit(i,1), QB.'];
-    Array_BetaB=[ Array_BetaB;  Orbit(i,1), BetaB];
-    Qinit =  QB;
-end
 
-%%
+    
+    [DispB,QB,BetaB] = PoliNavigationSolver(0,PP_use,6,Binit,Qinit);
+    %disp(i);
+    
+    Array_Disp(i,:) = [Orbit(i,1), DispB];
+    Array_QB(i,:) = [Orbit(i,1), QB.'];
+    Array_BetaB(i,:) =[Orbit(i,1), BetaB];
+    %Qinit =  [1;0;0;0];
+end
+toc
+%% result
 %save('ResultNavigation5.mat',"Array_BetaB","Array_Disp","Array_QB"); 
 
 figure 
@@ -128,12 +134,23 @@ axis equal
 legend('Estimation','Ground Truth');
 saveas(gcf,'image_ksas\Simulation_xy.svg')
 savefig(gcf,'image_ksas\Simulation_xy.fig')
+figure
+tempx = Array_Disp(1:131,2)+Orbit(170:300,2);
+tempy = Array_Disp(1:131,3)+Orbit(170:300,3);
+norm2 = sqrt(tempx.^2 + tempy.^2);
+histogram(norm2,'NumBins',10);
+rms_val = sqrt(mean(norm2.^2))
+max_val = max(abs(norm2))
+std_val = std(norm2)
+
+
+rms_val = sqrt(mean(error.^2));
+max_val = max(abs(error));
+std_val = std(error);
 figure 
 plot(Array_Disp(1:131,2)+Orbit(170:300,2),Array_Disp(1:131,3)+Orbit(170:300,3),'ro','Markersize',3)
-
-
 xlabel('X (m)','FontSize',16); ylabel('Y (m)','FontSize',16);
-
+axis equal
 saveas(gcf,'image_ksas\Simulation_error.svg')
 savefig(gcf,'image_ksas\Simulation_error.fig')
 
@@ -148,7 +165,7 @@ xlabel('q1','FontSize',16); ylabel('q2','FontSize',16);zlabel('q3','FontSize',16
 axis equal
 legend('Ground Truth','Estimation');
 
-qTemp = zeros(150,4);
+qTemp = zeros(131,4);
 for i= 1:131
     qTemp(i,:) = quatmultiply(quatconj(Array_QB(i,2:5)),quater0(i+169,:));
 end
@@ -156,7 +173,7 @@ scatter3(qTemp(:,2),qTemp(:,3),qTemp(:,4),4,qTemp(:,1),'filled')
 axis equal
 xlabel('q1','FontSize',16); ylabel('q2','FontSize',16);zlabel('q3','FontSize',16);
 axis ([-0.5 0.5 -0.5 0.5 -1 1]);
-for i= 1:50
+for i= 1:131
     qTemp2(i,:) = quatmultiply(quatconj(qTemp(i,1:4)),qTemp(6,1:4));
 end
 figure
@@ -185,7 +202,7 @@ view([1, 1, 1]);
 axis equal
 grid on
 %}
-%%
+%% rotated image
 syms q0 q1 q2 q3 real
 syms x y z
 Rq = [ q0^2+q1^2-q2^2-q3^2, 2*(q1*q2 - q0*q3),     2*(q1*q3 + q0*q2);
