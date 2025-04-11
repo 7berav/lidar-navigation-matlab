@@ -1,5 +1,5 @@
 %2025 03 31
-function [ResultDisp, ResultRot,Beta] = PoliNavigationSolver(isGlobalApproach, PPcoord, order,binit,qinit)
+function [ResultDisp, ResultRot,Beta,initVal, optVal] = PoliNavigationSolver2(isGlobalApproach, PPcoord, order,binit,qinit)
     syms x;
     syms y;
     syms z;
@@ -17,8 +17,8 @@ function [ResultDisp, ResultRot,Beta] = PoliNavigationSolver(isGlobalApproach, P
         ResultDisp = ResultDisp0 + center_shift;
     end
 
-    ResultRot = Rotation(Beta,order,binit,qinit);
-
+    [ResultRot,initVal, optVal] = Rotation(Beta,order,binit,qinit);
+    
 end
 
 function [DispOut, Beta] =  DisplacementGlobal(coord,order)
@@ -127,70 +127,50 @@ function [DispOut, Beta] = DisplacementLocal(coord,order)
 end
   
 
-function QOut = Rotation(Beta, order,binit,qinit)
-    syms q0 q1 q2 q3 real
-    syms x y z
+function [QOut,initVal,optVal] = Rotation(Beta,order,binit,qinit)
+%    syms q0 q1 q2 q3 real
+%    syms x y z
     % 간단히 벡터화
-    q = [q0; q1; q2; q3];
+%    q = [q0; q1; q2; q3];
     
     % 회전행렬 R(q) 정의
-    Rq = [ q0^2+q1^2-q2^2-q3^2, 2*(q1*q2 - q0*q3),     2*(q1*q3 + q0*q2);
-           2*(q2*q1 + q0*q3),   q0^2 - q1^2 + q2^2 - q3^2, 2*(q2*q3 - q0*q1);
-           2*(q3*q1 - q0*q2),   2*(q3*q2 + q0*q1),     q0^2 - q1^2 - q2^2 + q3^2 ];
+%    Rq = [ q0^2+q1^2-q2^2-q3^2, 2*(q1*q2 - q0*q3),     2*(q1*q3 + q0*q2);
+%           2*(q2*q1 + q0*q3),   q0^2 - q1^2 + q2^2 - q3^2, 2*(q2*q3 - q0*q1);
+%           2*(q3*q1 - q0*q2),   2*(q3*q2 + q0*q1),     q0^2 - q1^2 - q2^2 + q3^2 ];
     
-    xr = Rq(1,1)*x + Rq(1,2)*y + Rq(1,3)*z;
-    yr = Rq(2,1)*x + Rq(2,2)*y + Rq(2,3)*z;
-    zr = Rq(3,1)*x + Rq(3,2)*y + Rq(3,3)*z;
+%    xr = Rq(1,1)*x + Rq(1,2)*y + Rq(1,3)*z;
+%    yr = Rq(2,1)*x + Rq(2,2)*y + Rq(2,3)*z;
+%    zr = Rq(3,1)*x + Rq(3,2)*y + Rq(3,3)*z;
     
-    TermsB = homogeneTerm(order);
-    f2 = Beta *  TermsB(:);
-    f4_rotated = subs(f2, [x,y,z], [xr,yr,zr]);%중심에 있는 f3를 회전
-    
-    [coeffsB, monomialB] = coeffs(f4_rotated , [x,y,z]);
-    coeffsB_unused = sym([]);
-    %{
-    monList = [
-      0 6 0;
-      2 4 0;   
-      4 2 0;
-      6 0 0;   
-      0 0 6;
-    ];
-    %}
-    %{
-    for k = 1:length(monomialB) %안쓰는 항들의 계수 norm 구하기
-        degx = feval(symengine, 'degree', monomialB(k), x);
-        degy = feval(symengine, 'degree', monomialB(k), y);
-        degz = feval(symengine, 'degree', monomialB(k), z);
-        if ~ismember([degx, degy, degz], monList, 'rows');
-           coeffsB_unused(end+1) = coeffsB(k);  
-        end
-    end
-    %}
-    for k = 1:length(monomialB) %안쓰는 항들의 계수 norm 구하기
-        coeffsB_unused(end+1) = coeffsB(k)-binit(k);  
+
         
-    end
-    f_coeffsB_norm = sum(coeffsB_unused.^2);  % f_obj(a,b,c)
-    
-    fNum = matlabFunction(f_coeffsB_norm, 'Vars', [q0, q1, q2, q3]);
-    fHandle3 = @(var) fNum(var(1), var(2), var(3), var(4));
+    %end
+    global Mhandle
+    w = ones(length(binit),1);
+    w(1) = 300;
+    w(2) = 300;
+    w(3) = 300;
+    fObj = @(qVec) sum( w .* ((Mhandle(qVec(1),qVec(2),qVec(3),qVec(4)) * Beta.' - binit).^2));
+
+
+    %fNum = matlabFunction(f_coeffsB_norm, 'Vars', [q0, q1, q2, q3]);
+    %fHandle3 = @(var) fNum(var(1), var(2), var(3), var(4));
     nonlcon = @(qVec) deal([],qVec'*qVec - 1);  
     
     
     %initQ = [1; 0; 0; 0];
     initQ = qinit;
+    initVal = fObj(initQ.');
+
     optionsC = optimoptions('fmincon','Display','none','Algorithm','interior-point',...
-        'OptimalityTolerance',3e-4,'ConstraintTolerance',1e-4,'MaxIterations',18,'UseParallel',false);
+        'OptimalityTolerance',3e-4,'ConstraintTolerance',1e-4,'MaxIterations',19,'UseParallel',false);
     
-    [qOpt, fValB] = fmincon(@(qIn) fHandle3 (qIn), ...
+    [qOpt, fValB] = fmincon(@(qIn) fObj (qIn), ...
                            initQ,[],[],[],[],[],[], nonlcon, optionsC);
     qOpt = qOpt / norm(qOpt);  % safety normalize
         
-    %대입
-    f4_substituted = subs(f4_rotated, [q0,q1,q2,q3], qOpt.');%중심에 있는 f3를 회전
-    [coeffsB2, monomialB2] = coeffs(f4_substituted , [x,y,z]);
-    coeffsB2 = double(coeffsB2);
-    
+
+
+    optVal = fValB;
     QOut = qOpt;
 end
