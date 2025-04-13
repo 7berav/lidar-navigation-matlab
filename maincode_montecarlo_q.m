@@ -1,7 +1,7 @@
 
 
 % (2) 시간 범위 설정 
-t = linspace(0, 5400, 2000);
+t = linspace(0, 5400, 2000).';
 Orbit = [ t(:), zeros(2000,3)];
 
 
@@ -17,8 +17,14 @@ PPm_body(:,2) = PPm_body(:,2) * 1.14;
 PPm_body(:,3) = PPm_body(:,3) * 1.65;
 
 order = 6;
-quater0 = zeros(8000, 4);
-quater0(:,1) = 1;
+
+w = 0.06;
+
+%quater0 = zeros(2000, 4);
+n = [0 sin(35/57.92) cos(35/57.92)];
+%quater0(:,1) = 1;
+quater0= [cos(w*t), sin(w*t)*n(1), sin(w*t)*n(2), sin(w*t)*n(3)];
+
 quaterinit=zeros(8000, 4);
 for i = 1:8000
     qRand = randn(1, 4); 
@@ -27,6 +33,15 @@ for i = 1:8000
     quaterinit(i, :) = qRand;
 end
 quaterinit(2,:) = [1, 0, 0, 0]; 
+
+global quaterseed
+quaterseed=zeros(20, 4);
+for i = 1:20
+    qRand = randn(1, 4); 
+    qRand = qRand / norm(qRand);
+    
+    quaterseed(i, :) = qRand;
+end
 %{
 figure;
 histogram(quater0(:, 2)); 
@@ -84,7 +99,9 @@ w(1) = 100;
 w(2) = 100;
 w(3) = 100;
 fObj1 = @(qVec) sum( w .* ((Mhandle(qVec(1),qVec(2),qVec(3),qVec(4))*beta_values - beta_values ).^2));
+tic
 resultObj1 = arrayfun(@(idx) fObj1(quaterinit(idx,:)), 1:8000)';
+toc
 figure(9)
 scatter3(quaterinit(:,2),quaterinit(:,3),quaterinit(:,4),3,resultObj1(:),'filled');
 xlabel('q1','FontSize',16); ylabel('q2','FontSize',16);zlabel('q3','FontSize',16);
@@ -105,20 +122,21 @@ Array_BetaB=zeros(2000,N+1);
 tic
 for i = range
     %disp(i);
-    PP01 = generateRandomPointsOnHexagonPrism(100)+randn(100,3)*0.02;
-    PP02 = generateRandomPointsOnCube(100)+randn(100,3)*0.02;
+    PP01 = generateRandomPointsOnHexagonPrism(300)+randn(300,3)*0.02;
+    PP02 = generateRandomPointsOnCube(300)+randn(300,3)*0.02;
     PPm_body = PP01 ;
     PPm_body(:,1) = PPm_body(:,1) * 1.276;
     PPm_body(:,2) = PPm_body(:,2) * 1.14;
     PPm_body(:,3) = PPm_body(:,3) * 1.65;
 
-
-    PPmR_body = PPm_body;
+    rotm= quat2rotm(quater0(i,:));
+    PPmR_body = PPm_body * rotm.';
     PP_use = PPmR_body - [Orbit(i,2), Orbit(i,3),0];
     %PP_use = PPmR_body;
     Qinit = quaterinit(i,:).';
     %disp(beta_values);
     [DispB,QB,BetaB,inValB,optValB] = PoliNavigationSolver2(0,PP_use,order,beta_values,Qinit);
+   
     %disp(QB.');
     initialFvals(i) = inValB;
     finalFvals(i) = optValB;
@@ -154,6 +172,7 @@ axis equal
 legend('Estimation','Ground Truth');
 colorbar 
 caxis ([0 100])
+
 figure(11)
 histogram(finalFvals(range), 'BinWidth', 10);
 xlabel('finalFvals');
@@ -165,7 +184,7 @@ for i= range
     qTemp(i,:) = quatmultiply(quatconj(Array_QB(i,2:5)),quater0(i,:));
 end
 figure(12)
-scatter3(qTemp(:,2),qTemp(:,3),qTemp(:,4),4,qTemp(:,1),'filled')
+scatter3(qTemp(range,2),qTemp(range,3),qTemp(range,4),4,finalFvals(range),'filled')
 axis equal
 xlabel('q1','FontSize',16); ylabel('q2','FontSize',16);zlabel('q3','FontSize',16);
 axis ([-1 1 -1 1 -1 1]);

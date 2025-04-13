@@ -8,7 +8,7 @@ function [ResultDisp, ResultRot,Beta,initVal, optVal] = PoliNavigationSolver2(is
 
     center_shift = mean(PPm_use,1);
     PPm_shift = PPm_use - center_shift;
-
+    tic
     if isGlobalApproach
         [ResultDisp0, Beta] = DisplacementGlobal(PPm_shift,order);
         ResultDisp = ResultDisp0 + center_shift;
@@ -16,9 +16,10 @@ function [ResultDisp, ResultRot,Beta,initVal, optVal] = PoliNavigationSolver2(is
         [ResultDisp0, Beta] = DisplacementLocal(PPm_shift,order);
         ResultDisp = ResultDisp0 + center_shift;
     end
-
+    toc
+    tic
     [ResultRot,initVal, optVal] = Rotation(Beta,order,binit,qinit);
-    
+    toc
 end
 
 function [DispOut, Beta] =  DisplacementGlobal(coord,order)
@@ -147,9 +148,9 @@ function [QOut,initVal,optVal] = Rotation(Beta,order,binit,qinit)
     %end
     global Mhandle
     w = ones(length(binit),1);
-    w(1) = 300;
-    w(2) = 300;
-    w(3) = 300;
+    w(1) = 240;
+    w(2) = 240;
+    w(3) = 240;
     fObj = @(qVec) sum( w .* ((Mhandle(qVec(1),qVec(2),qVec(3),qVec(4)) * Beta.' - binit).^2));
 
 
@@ -157,20 +158,51 @@ function [QOut,initVal,optVal] = Rotation(Beta,order,binit,qinit)
     %fHandle3 = @(var) fNum(var(1), var(2), var(3), var(4));
     nonlcon = @(qVec) deal([],qVec'*qVec - 1);  
     
-    
+    global quaterseed
+    size(quaterseed);
+    spset = CustomStartPointSet(quaterseed);
+
     %initQ = [1; 0; 0; 0];
     initQ = qinit;
     initVal = fObj(initQ.');
+    
 
+    
+    
     optionsC = optimoptions('fmincon','Display','none','Algorithm','interior-point',...
-        'OptimalityTolerance',3e-4,'ConstraintTolerance',1e-4,'MaxIterations',19,'UseParallel',false);
+        'OptimalityTolerance',3e-4,'ConstraintTolerance',1e-4,'MaxIterations',39,'UseParallel',false);
+    
+  
+    problem = createOptimProblem('fmincon','objective', @(qVec) fObj(qVec), ...
+    'x0', initQ, 'lb', -ones(1,4), 'ub', ones(1,4), 'nonlcon', @(qVec) nonlcon(qVec),'options', optionsC);
+    ms = MultiStart('UseParallel', false, 'Display', 'iter','StartPointsToRun','all');
+    
+    %[xMulti, fvalMulti, exitflagMulti, outMulti, solutionsMulti] = run(ms, problem, spset);
+    
+    
+    
+    gs = GlobalSearch('NumTrialPoints', 500,'NumStageOnePoints',30 ,'Display','none');
+    %'NumTrialPoints' = 20개의 후보점을 뿌려서 유망한 지점만 local solver로 보냄
+    
+    [xGlobal, fvalGlobal] = run(gs, problem);
+    
+
+
     
     [qOpt, fValB] = fmincon(@(qIn) fObj (qIn), ...
                            initQ,[],[],[],[],[],[], nonlcon, optionsC);
+    
+
     qOpt = qOpt / norm(qOpt);  % safety normalize
-        
+    %optVal = fValB;
 
+    %disp(fvalMulti);
+    %disp(fvalGlobal);
+    %disp(fValB);
+    %disp('-----');
 
-    optVal = fValB;
+    qOpt = xGlobal / norm(xGlobal);
+    optVal = fvalGlobal;
+
     QOut = qOpt;
 end
