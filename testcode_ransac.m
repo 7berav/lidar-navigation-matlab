@@ -78,17 +78,26 @@ f1 = TermsB * beta_values;
 Binit = double(coeffsf0);
 
 
-ransacPar = struct('maxIter',600,'conf',0.90,'thresh',0.10,'minInlierRatio',0.6);
+ransacPar = struct('maxIter',1500,'conf',0.90,'thresh',0.11,'minInlierRatio',0.6);
 
 residuals1 = abs( FuncsB(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3))*beta_values-1); % N × #term
 inlierMask1 = residuals1 < ransacPar.thresh;
 score1      = sum(inlierMask1);
 
 
+center_shift = mean(PPm_use,1);
+PPm_use_uncenter = PPm_use - center_shift;
+figure(4)
 
+view([1 1 1]);
 
-
+scatter3(PPm_use_uncenter(:,1), PPm_use_uncenter(:,2), PPm_use_uncenter(:,3), ...
+         5, [0.8 0.8 0.8], '.');
+hold on
+axis equal;
 [DispRAN,BetaRAN, inlierMaskRAN] = PoliNavigationSolver3_Ransac(0,PPm_use,order,ransacPar);
+hold off
+
 
 PPm_use_unbias = PPm_use - DispRAN;
 residuals2 = abs( FuncsB(PPm_use_unbias(:,1),PPm_use_unbias(:,2),PPm_use_unbias(:,3))*BetaRAN-1); % N × #term
@@ -119,9 +128,9 @@ f2_RAN = TermsB * BetaRAN;
 PP_inlier = PPm_use(logical(inlierMaskRAN), :);
 PP_inlier_unbias = PP_inlier - DispRAN;
 figure(2)
-scatter3(PP_inlier_unbias(:,1),PP_inlier_unbias(:,2),PP_inlier_unbias(:,3),3,PP_inlier_unbias(:,3),'filled');
+scatter3(PP_inlier_unbias(:,1),PP_inlier_unbias(:,2),PP_inlier_unbias(:,3),3,'k','filled');
 hold on
-fimplicit3(f2_RAN-1,[-100 100 -100 100 -100 100],'FaceColor', [0.95, 0.82, 0.5]);
+fimplicit3(f2_RAN-1,[-100 100 -100 100 -100 100],'FaceColor', [0.90, 0.81, 0.53],'EdgeColor','none');
 hold off
 colormap(jet);
 xlabel ('X (m)')
@@ -129,10 +138,10 @@ ylabel ('Y (m)')
 zlabel ('Z (m)')
 view([1, 1, 1]);
 axis equal
-axis([-2.5 2.5 -2.5 2.5 -2.5 2.5])
+axis([-2.5 2.5 -5.5 5.5 -2.5 2.5])
 
 figure(3)
-scatter3(PPm_use_unbias(:,1),PPm_use_unbias(:,2),PPm_use_unbias(:,3),3,PPm_use_unbias(:,3),'filled');
+scatter3(PPm_use_unbias(:,1),PPm_use_unbias(:,2),PPm_use_unbias(:,3),3,[0.5 0.5 0.5],'filled');
 hold on
 %fimplicit3(f2_RAN-1,[-100 100 -100 100 -100 100],'FaceColor', [0.95, 0.82, 0.5]);
 hold off
