@@ -1,14 +1,14 @@
 %2025 03 31
 function [ResultDisp, ResultRot,Beta,initVal, optVal] = PoliNavigationSolver2(isGlobalApproach, PPcoord, order,binit,qinit)
-    syms x;
-    syms y;
-    syms z;
+    %syms x;
+    %syms y;
+    %syms z;
 
     PPm_use = PPcoord;
 
     center_shift = mean(PPm_use,1);
     PPm_shift = PPm_use - center_shift;
-    tic
+    
     if isGlobalApproach
         [ResultDisp0, Beta] = DisplacementGlobal(PPm_shift,order);
         ResultDisp = ResultDisp0 + center_shift;
@@ -16,7 +16,7 @@ function [ResultDisp, ResultRot,Beta,initVal, optVal] = PoliNavigationSolver2(is
         [ResultDisp0, Beta] = DisplacementLocal(PPm_shift,order);
         ResultDisp = ResultDisp0 + center_shift;
     end
-    toc
+    
     tic
     [ResultRot,initVal, optVal] = Rotation(Beta,order,binit,qinit);
     toc
@@ -66,25 +66,29 @@ function [DispOut, Beta] =  DisplacementGlobal(coord,order)
 end
     
 function [DispOut, Beta] = DisplacementLocal(coord,order)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
+    tic                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
     syms x y z
     TermsB = homogeneTerm(order);
     betaB = sym('beta', [1, length(TermsB)]);
     f2 = sum(betaB .* TermsB);
     FuncsB = matlabFunction(TermsB);
-
+    toc
+    tic
     difx = diff(f2, x);
     dify = diff(f2, y);
     difz = diff(f2, z);
+    toc
+    tic
     f2_numeric = matlabFunction(f2, 'Vars', {[x, y, z], betaB});
     d1_numeric = matlabFunction(difx, 'Vars', {[x, y, z], betaB});
     d2_numeric = matlabFunction(dify, 'Vars', {[x, y, z], betaB});
     d3_numeric = matlabFunction(difz, 'Vars', {[x, y, z], betaB});
-    
-
+    toc
+    tic
     coord_use = coord;
     [beta_values,error]    = regressionFourthOrder( coord_use,FuncsB);
-    
+    toc
+
     error_shift = error;  % 초기 에러 설정
     
     shift_1= [0;0;0];
@@ -92,11 +96,11 @@ function [DispOut, Beta] = DisplacementLocal(coord,order)
     shift1Set = [];
     shiftResidueSet = [0;0;0];
     shiftSum = [0 ; 0 ; 0];
-    numIterations = 5;  % 반복 횟수 설정
+    numIterations = 10;  % 반복 횟수 설정
 
     
 
-   
+    tic
     for i = 1:numIterations
         % 미분함수에 정의
         
@@ -121,7 +125,7 @@ function [DispOut, Beta] = DisplacementLocal(coord,order)
         %0.001s 
         
     end
-    
+    toc
     DispOut = shiftSum.';
     Beta = beta_values.';
 
@@ -146,54 +150,55 @@ function [QOut,initVal,optVal] = Rotation(Beta,order,binit,qinit)
 
         
     %end
+    
     global Mhandle
     w = ones(length(binit),1);
     w(1) = 240;
     w(2) = 240;
     w(3) = 240;
     fObj = @(qVec) sum( w .* ((Mhandle(qVec(1),qVec(2),qVec(3),qVec(4)) * Beta.' - binit).^2));
-
-
     %fNum = matlabFunction(f_coeffsB_norm, 'Vars', [q0, q1, q2, q3]);
     %fHandle3 = @(var) fNum(var(1), var(2), var(3), var(4));
     nonlcon = @(qVec) deal([],qVec'*qVec - 1);  
     
+
+    
     global quaterseed
-    size(quaterseed);
+    %size(quaterseed);
     spset = CustomStartPointSet(quaterseed);
 
     %initQ = [1; 0; 0; 0];
     initQ = qinit;
     initVal = fObj(initQ.');
-    
+   
 
     
     
     optionsC = optimoptions('fmincon','Display','none','Algorithm','interior-point',...
         'OptimalityTolerance',3e-4,'ConstraintTolerance',1e-4,'MaxIterations',39,'UseParallel',false);
     
-  
     problem = createOptimProblem('fmincon','objective', @(qVec) fObj(qVec), ...
     'x0', initQ, 'lb', -ones(1,4), 'ub', ones(1,4), 'nonlcon', @(qVec) nonlcon(qVec),'options', optionsC);
-    ms = MultiStart('UseParallel', false, 'Display', 'iter','StartPointsToRun','all');
-    
-    %[xMulti, fvalMulti, exitflagMulti, outMulti, solutionsMulti] = run(ms, problem, spset);
     
     
     
-    gs = GlobalSearch('NumTrialPoints', 500,'NumStageOnePoints',30 ,'Display','none');
+    gs = GlobalSearch('NumTrialPoints', 1650,'NumStageOnePoints',180,'StartPointsToRun',...
+        'bounds','Display','none');
+    gs.BasinRadiusFactor = 0.5;  % 기본값보다 작게 설정하면 basin 축소 폭이 달라짐
+    gs.MaxWaitCycle = 10; 
+    %gs = GlobalSearch('Display','iter','StartPointsToRun','bounds');
     %'NumTrialPoints' = 20개의 후보점을 뿌려서 유망한 지점만 local solver로 보냄
     
     [xGlobal, fvalGlobal] = run(gs, problem);
     
 
 
-    
-    [qOpt, fValB] = fmincon(@(qIn) fObj (qIn), ...
-                           initQ,[],[],[],[],[],[], nonlcon, optionsC);
-    
 
-    qOpt = qOpt / norm(qOpt);  % safety normalize
+    %[qOpt, fValB] = fmincon(@(qIn) fObj (qIn), ...
+    %                       initQ,[],[],[],[],[],[], nonlcon, optionsC);
+
+
+    %qOpt = qOpt / norm(qOpt);  % safety normalize
     %optVal = fValB;
 
     %disp(fvalMulti);
