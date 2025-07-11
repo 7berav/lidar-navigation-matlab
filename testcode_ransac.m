@@ -1,6 +1,6 @@
-PP01 = generateRandomPointsOnHexagonPrism(7800)+randn(7800,3)*0.005;
+PP01 = generateRandomPointsOnHexagonPrism(7800)+randn(7800,3)*0.007;
 PP02 = generateRandomPointsOnCube(1000)+randn(1000,3)*0.0005;
-PP03 = generateRandomPointsOnCylinder(8001)+randn(8001,3)*0.003;
+PP03 = generateRandomPointsOnCylinder(8001)+randn(8001,3)*0.005;
 PP04 = generateRandomPointsOnCylinder(2200)+randn(2200,3)*0.02;
 PP05 = generateRandomPointsOnIcosahedron(4000);
 
@@ -20,7 +20,7 @@ TermsB = homogeneTerm(order);
 FuncsB = matlabFunction(TermsB);
 Qinit = [1;0.0;0.0;0.00];
 N = length(TermsB);
-
+%%
 syms q0 q1 q2 q3  real
 q = [q0; q1; q2; q3];
 % 회전행렬 R(q) 정의
@@ -66,7 +66,7 @@ PPm_use = PPmR_body - [Orbit(1,2), Orbit(1,3),0];
 PPm_body2 = PP04;
 PPm_body2(:,3) = PPm_body2(:,3 )* 4.5;
 rotm= quat2rotm([1/sqrt(2),1/sqrt(2),0,0]);
-PPmR_body2 = PPm_body2 * rotm.'- [Orbit(1,2), Orbit(1,3),0];
+PPmR_body2 = PPm_body2 * rotm.' + [Orbit(1,3), 0, Orbit(1,2)];
 PPm_use = [PPm_use; PPmR_body2 ];
 
 
@@ -78,7 +78,7 @@ f1 = TermsB * beta_values;
 Binit = double(coeffsf0);
 
 
-ransacPar = struct('maxIter',1500,'conf',0.90,'thresh',0.11,'minInlierRatio',0.6);
+ransacPar = struct('maxIter',1600,'conf',0.90,'thresh',0.44,'minInlierRatio',0.6,'updateThresh',0.60);
 
 residuals1 = abs( FuncsB(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3))*beta_values-1); % N × #term
 inlierMask1 = residuals1 < ransacPar.thresh;
@@ -87,16 +87,9 @@ score1      = sum(inlierMask1);
 
 center_shift = mean(PPm_use,1);
 PPm_use_uncenter = PPm_use - center_shift;
-figure(4)
 
-view([1 1 1]);
-
-scatter3(PPm_use_uncenter(:,1), PPm_use_uncenter(:,2), PPm_use_uncenter(:,3), ...
-         5, [0.8 0.8 0.8], '.');
-hold on
-axis equal;
 [DispRAN,BetaRAN, inlierMaskRAN] = PoliNavigationSolver3_Ransac(0,PPm_use,order,ransacPar);
-hold off
+
 
 
 PPm_use_unbias = PPm_use - DispRAN;
@@ -104,22 +97,7 @@ residuals2 = abs( FuncsB(PPm_use_unbias(:,1),PPm_use_unbias(:,2),PPm_use_unbias(
 inlierMask2 = residuals2 < ransacPar.thresh;
 score2      = sum(inlierMask2);
 
-inlierMask3 = residuals2 < 0.1;
-score3      = sum(inlierMask3);
 
-%%
-figure(1)
-scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),3,PPm_use(:,3),'filled');
-hold on
-fimplicit3(f1-1,[-100 100 -100 100 -100 100],'FaceColor', [0.95, 0.82, 0.5]);
-hold off
-colormap(jet);
-xlabel ('X (m)')
-ylabel ('Y (m)')
-zlabel ('Z (m)')
-view([1, 1, 1]);
-axis equal
-axis([-2.5 2.5 -2.5 2.5 -2.5 2.5])
 
 
 
@@ -128,9 +106,9 @@ f2_RAN = TermsB * BetaRAN;
 PP_inlier = PPm_use(logical(inlierMaskRAN), :);
 PP_inlier_unbias = PP_inlier - DispRAN;
 figure(2)
-scatter3(PP_inlier_unbias(:,1),PP_inlier_unbias(:,2),PP_inlier_unbias(:,3),3,'k','filled');
+scatter3(PP_inlier_unbias(:,1),PP_inlier_unbias(:,2),PP_inlier_unbias(:,3),3,'b','filled');
 hold on
-fimplicit3(f2_RAN-1,[-100 100 -100 100 -100 100],'FaceColor', [0.90, 0.81, 0.53],'EdgeColor','none');
+fimplicit3(f2_RAN-1,[-100 100 -100 100 -100 100],'FaceColor', [0.90, 0.81, 0.53],'EdgeColor','none','FaceAlpha',0.5);
 hold off
 colormap(jet);
 xlabel ('X (m)')
@@ -141,9 +119,10 @@ axis equal
 axis([-2.5 2.5 -5.5 5.5 -2.5 2.5])
 
 figure(3)
-scatter3(PPm_use_unbias(:,1),PPm_use_unbias(:,2),PPm_use_unbias(:,3),3,[0.5 0.5 0.5],'filled');
+scatter3(PPm_use_unbias(:,1),PPm_use_unbias(:,2),PPm_use_unbias(:,3),2,[0.5 0.5 0.5],'filled');
 hold on
-%fimplicit3(f2_RAN-1,[-100 100 -100 100 -100 100],'FaceColor', [0.95, 0.82, 0.5]);
+scatter3(PP_inlier_unbias(:,1),PP_inlier_unbias(:,2),PP_inlier_unbias(:,3),3,'b','filled');
+fimplicit3(f2_RAN-1,[-100 100 -100 100 -100 100],'FaceColor', [0.95, 0.82, 0.5],'EdgeColor','none','FaceAlpha',0.5);
 hold off
 colormap(jet);
 xlabel ('X (m)')
@@ -151,9 +130,9 @@ ylabel ('Y (m)')
 zlabel ('Z (m)')
 view([1, 1, 1]);
 axis equal
-axis([-2.5 2.5 -2.5 2.5 -2.5 2.5])
+axis([-2.5 2.5 -5.5 5.5 -2.5 2.5])
 %%
-colors = [0.2 0.6 0.2];   % FileExchange 함수
+colors = lines(10);   % FileExchange 함수
 xr = linspace(-2.5, 2.5, 20);
 yr = linspace(-2.5, 2.5, 20);
 zr = linspace(-2.5, 2.5, 20);
@@ -165,13 +144,13 @@ zi = zg(:) - DispRAN(3);
 F   = FuncsB(xi,yi,zi) * BetaRAN - 1;
 Vol = reshape(F, size(xg)); 
 
-figure(4)
+figure(6)
 axis equal;
 view([1 1 1]);
 fv = isosurface(xg, yg, zg, Vol, 0);
 
 patchH(m) = patch( fv, ...
-        'FaceColor', colors(m,:), ...
+        'FaceColor', colors(1,:), ...
         'FaceAlpha', 0.15, ...
         'EdgeColor', 'none');
 hold on 
