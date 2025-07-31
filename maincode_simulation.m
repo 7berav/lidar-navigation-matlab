@@ -1,4 +1,6 @@
 %%
+% 20250404 춘계학술대회
+% 회전 초창기 코드 
 n  = sqrt(3.986*10^5/(6380+650)^3); 
 
 D1_new = 0;
@@ -44,22 +46,22 @@ set(gca,'XDir','reverse')
 
 hold off;
 axis equal;
-
+Orbit(:,2:4) = zeros(300,3);
 
 %%
-PP01 = generateRandomPointsOnHexagonPrism(100)+randn(100,3)*0.02;
+PP01 = generateRandomPointsOnHexagonPrism(1000)+randn(1000,3)*0.02;
 PP02 = generateRandomPointsOnCube(1000)+randn(1000,3)*0.0005;
 PP03 = generateRandomPointsOnCylinder(7000)+randn(7000,3)*0.0005;
 PP04 = generateRandomPointsOnCube(200);
 
 PPm_body = PP01 ;
 PPm_body(:,1) = PPm_body(:,1) * 0.576;
-PPm_body(:,2) = PPm_body(:,2) * 0.576;
+PPm_body(:,2) = PPm_body(:,2) * 0.579;
 PPm_body(:,3) = PPm_body(:,3) * 1.165;
 
 order = 6;
 n = [0 sin(35/57.92) cos(35/57.92)];
-w = 0.006;
+w = 0.000;
 t = linspace(-11200, 0, 200).';
 quater0= [cos(w*t), sin(w*t)*n(1), sin(w*t)*n(2), sin(w*t)*n(3)];
 
@@ -73,16 +75,20 @@ quater0= [quater0 ;cos(w*t), sin(w*t)*n(1), sin(w*t)*n(2), sin(w*t)*n(3)];
 syms x y z
 TermsB = homogeneTerm(order);
 FuncsB = matlabFunction(TermsB);
-Qinit = [1;0;0;0];
+Qinit = [0.8;0.6;0.0;0.10];
 Array_Disp=zeros(200,4);
 Array_QB=zeros(200,5);
 Array_BetaB=zeros(200,29);
 
-[beta_values,error]  = regressionFourthOrder( PP01,FuncsB);
-   
-Binit = beta_values.';
+[beta_values,error]  = regressionFourthOrder(PPm_body,FuncsB);
+f1 = TermsB * beta_values;
+[coeffsf0, monomialf0] = coeffs(f1 , [x,y,z]);   
+
+
+Binit = double(coeffsf0);
+range = 171:171;
 tic
-for i= 171:180
+parfor i= range
     PP01 = generateRandomPointsOnHexagonPrism(100)+randn(100,3)*0.02;
     PPm_body = PP01 ;
     PPm_body(:,1) = PPm_body(:,1) * 0.576;
@@ -92,10 +98,10 @@ for i= 171:180
     rotm= quat2rotm(quater0(i,:));
     PPmR_body = PPm_body * rotm.';
     PP_use = PPmR_body - [Orbit(i,2), Orbit(i,3),0];
-
+    %PP_use = PPmR_body;
     
     [DispB,QB,BetaB] = PoliNavigationSolver(0,PP_use,6,Binit,Qinit);
-    %disp(i);
+    disp(QB);
     
     Array_Disp(i,:) = [Orbit(i,1), DispB];
     Array_QB(i,:) = [Orbit(i,1), QB.'];
@@ -104,8 +110,10 @@ for i= 171:180
 end
 toc
 %% result
-%save('ResultNavigation5.mat',"Array_BetaB","Array_Disp","Array_QB"); 
+%{
+save('ResultNavigation12.mat',"Array_BetaB","Array_Disp","Array_QB"); 
 
+%center position
 figure 
 plot(Array_Disp(1:5:end,1),Array_Disp(1:5:end,3),'ro','Markersize',3)
 hold on 
@@ -153,26 +161,29 @@ xlabel('X (m)','FontSize',16); ylabel('Y (m)','FontSize',16);
 axis equal
 saveas(gcf,'image_ksas\Simulation_error.svg')
 savefig(gcf,'image_ksas\Simulation_error.fig')
-
-
-
+%}
+%%
+%quaternion
+%{
 figure
-scatter3(Array_QB(1:131,3),Array_QB(1:131,4),Array_QB(1:131,5),3,'ro','filled');
+scatter3(Array_QB(range,3),Array_QB(range,4),Array_QB(range,5),3,'ro','filled');
 hold on
-scatter3(quater0(170:300,2),quater0(170:300,3),quater0(170:300,4),3,'k','filled');
+scatter3(quater0(range,2),quater0(range,3),quater0(range,4),3,'k','filled');
 hold off
 xlabel('q1','FontSize',16); ylabel('q2','FontSize',16);zlabel('q3','FontSize',16);
 axis equal
 legend('Ground Truth','Estimation');
 
-qTemp = zeros(131,4);
-for i= 1:131
-    qTemp(i,:) = quatmultiply(quatconj(Array_QB(i,2:5)),quater0(i+169,:));
+qTemp = zeros(300,4);
+for i= range
+    qTemp(i,:) = quatmultiply(quatconj(Array_QB(i,2:5)),quater0(i,:));
 end
+figure
 scatter3(qTemp(:,2),qTemp(:,3),qTemp(:,4),4,qTemp(:,1),'filled')
 axis equal
 xlabel('q1','FontSize',16); ylabel('q2','FontSize',16);zlabel('q3','FontSize',16);
-axis ([-0.5 0.5 -0.5 0.5 -1 1]);
+axis ([-1 1 -1 1 -1 1]);
+%{
 for i= 1:131
     qTemp2(i,:) = quatmultiply(quatconj(qTemp(i,1:4)),qTemp(6,1:4));
 end
@@ -180,19 +191,30 @@ figure
 scatter3(qTemp2(:,2),qTemp2(:,3),qTemp2(:,4),4,qTemp2(:,1),'filled')
 axis equal
 xlabel('q1','FontSize',16); ylabel('q2','FontSize',16);zlabel('q3','FontSize',16);
-
+%}
+%}
 %%
 TermsB = homogeneTerm(order);
-%fA = BetaA *  TermsB(:);
-fB = BetaB *  TermsB(:);
-%fA_shift =  subs(fA, [x, y, z], [x - DispA(1), y - DispA(2), z - DispA(3)])-1;
-fB_shift =  subs(fB, [x, y, z], [x - DispB(1), y - DispB(2), z - DispB(3)])-1;
 
-%{
+for i = 171
+    fB = Array_BetaB(i,2:29) *  TermsB(:);
+    fB_shift =  subs(fB, [x, y, z], [x - Array_Disp(i,2), y - Array_Disp(i,3), z - Array_Disp(i,4)])-1;
+
+    %PP01 = generateRandomPointsOnHexagonPrism(100)+randn(100,3)*0.02;
+    %PPm_body = PP01 ;
+    %PPm_body(:,1) = PPm_body(:,1) * 0.576;
+    %PPm_body(:,2) = PPm_body(:,2) * 0.576;
+    %PPm_body(:,3) = PPm_body(:,3) * 1.165;
+
+    %rotm= quat2rotm(quater0(i,:));
+    %PPmR_body = PPm_body * rotm.';
+    %PP_use = PPmR_body - [Orbit(i,2), Orbit(i,3),0];
+end 
+
 figure(4)
 scatter3(PP_use(:,1),PP_use(:,2),PP_use(:,3),1,PP_use(:,3),'filled');
 hold on
-fimplicit3(fB_shift,[-100 100 -1000 100 -100 100],'FaceColor', [0.95, 0.82, 0.5]);
+fimplicit3(fB_shift,[-30 30 -50 50 -20 30],'FaceColor', [0.95, 0.82, 0.5]);
 hold off
 colormap(jet);
 xlabel ('X (m)')
@@ -201,7 +223,7 @@ zlabel ('Z (m)')
 view([1, 1, 1]);
 axis equal
 grid on
-%}
+
 %% rotated image
 syms q0 q1 q2 q3 real
 syms x y z
@@ -216,10 +238,11 @@ zr = Rq(3,1)*x + Rq(3,2)*y + Rq(3,3)*z;
 %fA_rot = subs(fA, [x,y,z], [xr,yr,zr]);
 %fA_rot = subs(fA_rot, [q0,q1,q2,q3], QA.');
 fB_rot = subs(fB, [x,y,z], [xr,yr,zr]);
-fB_rot = subs(fB_rot, [q0,q1,q2,q3], QB.');
-[coeffsfB, monomialfB] = coeffs(fB_rot , [x,y,z]);
+fB_rot2 = subs(fB_rot, [q0,q1,q2,q3], Array_QB(i,2:5));
+[coeffsfB, monomialfB] = coeffs(fB_rot2 , [x,y,z]);
 coeffsfB = double(coeffsfB);
 coeffsfB_unused = sym([]);
+%{
 monList = [
   0 6 0;
   2 4 0;   
@@ -238,38 +261,16 @@ for k = 1:length(monomialfB) %안쓰는 항들의 계수 norm 구하기
     end
 end
 
-
+%}
 
 %RqA = double(subs(Rq,[q0,q1,q2,q3],[QA(1),-QA(2),-QA(3),-QA(4)]));
 %PPmR_shiftA = PPmR_body - DispA;
 %PPmR_rotA = (RqA * PPmR_shiftA.').';
 
-RqB = double(subs(Rq,[q0,q1,q2,q3],[QB(1),-QB(2),-QB(3),-QB(4)]));
+RqB = double(subs(Rq,[q0,q1,q2,q3],[ Array_QB(i,2),-Array_QB(i,3),-Array_QB(i,4),- Array_QB(i,5)]));
 PPmR_shiftB = PPmR_body;
 PPmR_rotB = (RqB * PPmR_shiftB.').';
-%{
-figure(1)
-scatter3(PPmR_rotA(:,1),PPmR_rotA(:,2),PPmR_rotA(:,3),1,PPmR_rotA(:,3),'filled');
-hold on
-fimplicit3(fA_rot-1,[-100 100 -100 100 -100 100],'FaceColor', [0.95, 0.82, 0.5]);
-hold off
-colormap(jet);
-xlabel ('X (m)')
-ylabel ('Y (m)')
-zlabel ('Z (m)')
-view([1, 1, 1]);
-axis equal
-axis([-1.5 1.5 -1.5 1.5 -1.5 1.5])
-grid on
-%}
-figure(1)
-scatter3(PPmR_body(:,1),PPmR_body(:,2),PPmR_body(:,3),3,PPmR_body(:,3),'filled');
-colormap(jet);
-xlabel ('X (m)')
-ylabel ('Y (m)')
-zlabel ('Z (m)')
-view([1, 1, 1]);
-axis equal
+
 
 figure(3)
 scatter3(PPmR_body(:,1),PPmR_body(:,2),PPmR_body(:,3),3,PPmR_body(:,3),'filled');
@@ -282,10 +283,12 @@ ylabel ('Y (m)')
 zlabel ('Z (m)')
 view([1, 1, 1]);
 axis equal
+axis([-1.5 1.5 -1.5 1.5 -1.5 1.5])
+
 figure(2)
 scatter3(PPmR_rotB(:,1),PPmR_rotB(:,2),PPmR_rotB(:,3),3,PPmR_rotB(:,3),'filled');
 hold on
-fimplicit3(fB_rot-1,[-100 100 -100 100 -100 100],'FaceColor', [0.95, 0.82, 0.5]);
+fimplicit3(fB_rot2-1,[-100 100 -100 100 -100 100],'FaceColor', [0.95, 0.82, 0.5]);
 hold off
 colormap(jet);
 xlabel ('X (m)')

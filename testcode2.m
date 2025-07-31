@@ -1,4 +1,5 @@
 %2025 1 14
+% 위치 추정 수동
 PP02 =generateRandomPointsOnCylinder(6000)+randn(6000,3)*0.01;
 
 shiftReal =  [1.20 -3.5 -3.1];

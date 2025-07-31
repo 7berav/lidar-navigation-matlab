@@ -88,6 +88,7 @@ score1      = sum(inlierMask1);
 center_shift = mean(PPm_use,1);
 PPm_use_uncenter = PPm_use - center_shift;
 
+% 종합 ransac
 [DispRAN,BetaRAN, inlierMaskRAN] = PoliNavigationSolver3_Ransac(0,PPm_use,order,ransacPar);
 
 
