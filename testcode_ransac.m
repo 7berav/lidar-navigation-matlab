@@ -14,8 +14,8 @@ quater0= [cos(w*t), sin(w*t)*n(1), sin(w*t)*n(2), sin(w*t)*n(3)];
 
 
 %%
-syms x y z
-order = 6;
+syms x y z 
+order = 8;
 TermsB = homogeneTerm(order);
 FuncsB = matlabFunction(TermsB);
 Qinit = [1;0.0;0.0;0.00];
