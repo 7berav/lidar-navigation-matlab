@@ -1,13 +1,13 @@
 PP01 = generateRandomPointsOnHexagonPrism(7800)+randn(7800,3)*0.007;
-PP02 = generateRandomPointsOnCube(1000)+randn(1000,3)*0.0005;
+PP02 = generateRandomPointsOnSpaceship(4000)+randn(4000,3)*0.006;
 PP03 = generateRandomPointsOnCylinder(8001)+randn(8001,3)*0.005;
-PP04 = generateRandomPointsOnCylinder(2200)+randn(2200,3)*0.02;
+PP04 = generateRandomPointsOnCylinder(500)+randn(500,3)*0.02;
 PP05 = generateRandomPointsOnIcosahedron(4000);
 
 
 t = linspace(0, 5400, 2000).';
 Orbit = [ t(:), zeros(2000,3)];
-Orbit(1,(2:4)) = [0.0 0.0 0];
+Orbit(1,(2:4)) = [0.1 0.5 1.6];
 w = 0.06;
 n = [0 sin(35/57.92) cos(35/57.92)];
 quater0= [cos(w*t), sin(w*t)*n(1), sin(w*t)*n(2), sin(w*t)*n(3)];
@@ -56,20 +56,20 @@ Mhandle = matlabFunction(M_sym, 'Vars', {q0,q1,q2,q3});
 
 
 %% field of objective function
-PPm_body = PP01;   
-PPm_body(:,1) = PPm_body(:,1) * 1;
-PPm_body(:,2) = PPm_body(:,2) * 1;
-PPm_body(:,3) = PPm_body(:,3 )* 1.5;
+PPm_body = PP02;   
+PPm_body(:,1) = PPm_body(:,1) * 2;
+PPm_body(:,2) = PPm_body(:,2) * 2;
+PPm_body(:,3) = PPm_body(:,3 )* 2;
 
 
 rotm= quat2rotm([1,0,0,0]);
 PPmR_body = PPm_body * rotm.';
-PPm_use = PPmR_body - [Orbit(1,2), Orbit(1,3),0];
+PPm_use = PPmR_body - [Orbit(1,2), Orbit(1,3),Orbit(1,4)];
 
 PPm_body2 = PP04;
-PPm_body2(:,3) = PPm_body2(:,3 )* 4.5;
-rotm= quat2rotm([1/sqrt(2),1/sqrt(2),0,0]);
-PPmR_body2 = PPm_body2 * rotm.' + [Orbit(1,3), 0, Orbit(1,2)];
+PPm_body2(:,3) = PPm_body2(:,3 )* 2.5;
+rotm= quat2rotm([2/sqrt(9),2/sqrt(9),0,1/sqrt(9)]);
+PPmR_body2 = PPm_body2 * rotm.' + [Orbit(1,3), Orbit(1,4), Orbit(1,2)];
 %PPm_use = [PPm_use; PPmR_body2 ];
 
 
@@ -96,10 +96,28 @@ zlabel ('Z (m)')
 view([1, 1, 1]);
 axis equal
 axis([-2.5 2.5 -5.5 5.5 -2.5 2.5])
+
+TermsA = nonhomogeneTerm(order);
+FuncsA = matlabFunction(TermsA);
+[beta_valuesA,errorA]  = regressionFourthOrder(PPm_use,FuncsA);
+f1_RAN = TermsC * beta_values;
+figure(1)
+scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),1,'b','filled');
+hold on
+fimplicit3(f1_RAN-1,[-100 100 -100 100 -100 100],'FaceColor', [0.90, 0.81, 0.53],'EdgeColor','none','FaceAlpha',0.5);
+hold off
+colormap(jet);
+xlabel ('X (m)')
+ylabel ('Y (m)')
+zlabel ('Z (m)')
+view([1, 1, 1]);
+axis equal
+axis([-2.5 2.5 -5.5 5.5 -2.5 2.5])
+
 %%
 
 
-ransacPar = struct('maxIter',1600,'conf',0.90,'thresh',0.44,'minInlierRatio',0.6,'updateThresh',0.60);
+ransacPar = struct('maxIter',20600,'conf',0.96,'thresh',0.454,'minInlierRatio',0.65,'updateThresh',0.61);
 
 residuals1 = abs( FuncsC(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3))*beta_values-1); % N × #term
 inlierMask1 = residuals1 < ransacPar.thresh;
@@ -109,49 +127,55 @@ score1      = sum(inlierMask1);
 center_shift = mean(PPm_use,1);
 PPm_use_uncenter = PPm_use - center_shift;
 
-[DispRAN,BetaRAN, inlierMaskRAN] = PoliNavigationSolver3_Ransac(0,PPm_use,order,ransacPar);
+[DispRAN,BetaRAN, inlierMaskRAN] = PoliNavigationSolver3_FischerRansac(0,PPm_use,order,ransacPar);
+scoreRAN      = sum(inlierMaskRAN);
 
-
-
-PPm_use_unbias = PPm_use - DispRAN;
-residuals2 = abs( FuncsB(PPm_use_unbias(:,1),PPm_use_unbias(:,2),PPm_use_unbias(:,3))*BetaRAN-1); % N × #term
-inlierMask2 = residuals2 < ransacPar.thresh;
-score2      = sum(inlierMask2);
-
+if ~isempty(BetaRAN)
+    PPm_use_unbias = PPm_use - DispRAN;
+    residuals2 = abs( FuncsC(PPm_use_unbias(:,1),PPm_use_unbias(:,2),PPm_use_unbias(:,3))*BetaRAN-1); % N × #term
+    inlierMask2 = residuals2 < ransacPar.thresh;
+    score2      = sum(inlierMask2);
+end
 
 
 
 
 %%
-f2_RAN = TermsB * BetaRAN;
-PP_inlier = PPm_use(logical(inlierMaskRAN), :);
-PP_inlier_unbias = PP_inlier - DispRAN;
-figure(2)
-scatter3(PP_inlier_unbias(:,1),PP_inlier_unbias(:,2),PP_inlier_unbias(:,3),3,'b','filled');
-hold on
-fimplicit3(f2_RAN-1,[-100 100 -100 100 -100 100],'FaceColor', [0.90, 0.81, 0.53],'EdgeColor','none','FaceAlpha',0.5);
-hold off
-colormap(jet);
-xlabel ('X (m)')
-ylabel ('Y (m)')
-zlabel ('Z (m)')
-view([1, 1, 1]);
-axis equal
-axis([-2.5 2.5 -5.5 5.5 -2.5 2.5])
-
-figure(3)
-scatter3(PPm_use_unbias(:,1),PPm_use_unbias(:,2),PPm_use_unbias(:,3),2,[0.5 0.5 0.5],'filled');
-hold on
-scatter3(PP_inlier_unbias(:,1),PP_inlier_unbias(:,2),PP_inlier_unbias(:,3),3,'b','filled');
-fimplicit3(f2_RAN-1,[-100 100 -100 100 -100 100],'FaceColor', [0.95, 0.82, 0.5],'EdgeColor','none','FaceAlpha',0.5);
-hold off
-colormap(jet);
-xlabel ('X (m)')
-ylabel ('Y (m)')
-zlabel ('Z (m)')
-view([1, 1, 1]);
-axis equal
-axis([-2.5 2.5 -5.5 5.5 -2.5 2.5])
+if ~isempty(BetaRAN)
+    f1_RAN = TermsC * BetaRAN;
+    Funcs1_RAN = matlabFunction(f1_RAN);
+    PP_inlier = PPm_use(logical(inlierMaskRAN), :);
+    PP_inlier_unbias = PP_inlier - DispRAN;
+    Value_inlier_unbias = Funcs1_RAN(PP_inlier_unbias(:,1),PP_inlier_unbias(:,2),PP_inlier_unbias(:,3))-1;
+    figure(2)
+    scatter3(PP_inlier_unbias(:,1),PP_inlier_unbias(:,2),PP_inlier_unbias(:,3),3,Value_inlier_unbias(:),'filled');
+    hold on
+    fimplicit3(f1_RAN-1,[-100 100 -100 100 -100 100],'FaceColor', [0.90, 0.81, 0.53],'EdgeColor','none','FaceAlpha',0.5);
+    hold off
+    colormap(jet);
+    colorbar
+    caxis ([-0.5 0.5]);
+    xlabel ('X (m)')
+    ylabel ('Y (m)')
+    zlabel ('Z (m)')
+    view([1, 1, 1]);
+    axis equal
+    axis([-2.5 2.5 -5.5 5.5 -2.5 2.5])
+    
+    figure(3)
+    scatter3(PPm_use_unbias(:,1),PPm_use_unbias(:,2),PPm_use_unbias(:,3),2,[0.5 0.5 0.5],'filled');
+    hold on
+    scatter3(PP_inlier_unbias(:,1),PP_inlier_unbias(:,2),PP_inlier_unbias(:,3),3,'b','filled');
+    fimplicit3(f1_RAN-1,[-100 100 -100 100 -100 100],'FaceColor', [0.95, 0.82, 0.5],'EdgeColor','none','FaceAlpha',0.5);
+    hold off
+    colormap(jet);
+    xlabel ('X (m)')
+    ylabel ('Y (m)')
+    zlabel ('Z (m)')
+    view([1, 1, 1]);
+    axis equal
+    axis([-2.5 2.5 -5.5 5.5 -2.5 2.5])
+end
 %%
 colors = lines(10);   % FileExchange 함수
 xr = linspace(-2.5, 2.5, 20);
