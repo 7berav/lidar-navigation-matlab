@@ -7,7 +7,7 @@ PP05 = generateRandomPointsOnIcosahedron(4000);
 
 t = linspace(0, 5400, 2000).';
 Orbit = [ t(:), zeros(2000,3)];
-Orbit(1,(2:4)) = [0.1 0.5 1.6];
+Orbit(1,(2:4)) = [0.1 0.5 0];
 w = 0.06;
 n = [0 sin(35/57.92) cos(35/57.92)];
 quater0= [cos(w*t), sin(w*t)*n(1), sin(w*t)*n(2), sin(w*t)*n(3)];
@@ -15,7 +15,7 @@ quater0= [cos(w*t), sin(w*t)*n(1), sin(w*t)*n(2), sin(w*t)*n(3)];
 
 %%
 syms x y z 
-order = 6;
+order = 4;
 %TermsC = homogeneFischerTerms(order);
 %FuncsB = matlabFunction(TermsB);
 TermsC = homogeneFischerTerms(order);
@@ -56,9 +56,9 @@ Mhandle = matlabFunction(M_sym, 'Vars', {q0,q1,q2,q3});
 
 
 %% field of objective function
-PPm_body = PP02;   
-PPm_body(:,1) = PPm_body(:,1) * 2;
-PPm_body(:,2) = PPm_body(:,2) * 2;
+PPm_body = PP04;   
+PPm_body(:,1) = PPm_body(:,1) * 1;
+PPm_body(:,2) = PPm_body(:,2) * 1;
 PPm_body(:,3) = PPm_body(:,3 )* 2;
 
 
@@ -97,25 +97,10 @@ view([1, 1, 1]);
 axis equal
 axis([-2.5 2.5 -5.5 5.5 -2.5 2.5])
 
-TermsA = nonhomogeneTerm(order);
-FuncsA = matlabFunction(TermsA);
-[beta_valuesA,errorA]  = regressionFourthOrder(PPm_use,FuncsA);
-f1_RAN = TermsC * beta_values;
-figure(1)
-scatter3(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3),1,'b','filled');
-hold on
-fimplicit3(f1_RAN-1,[-100 100 -100 100 -100 100],'FaceColor', [0.90, 0.81, 0.53],'EdgeColor','none','FaceAlpha',0.5);
-hold off
-colormap(jet);
-xlabel ('X (m)')
-ylabel ('Y (m)')
-zlabel ('Z (m)')
-view([1, 1, 1]);
-axis equal
-axis([-2.5 2.5 -5.5 5.5 -2.5 2.5])
 
-%%
 
+%% 구식 ransac 
+%{
 
 ransacPar = struct('maxIter',20600,'conf',0.96,'thresh',0.454,'minInlierRatio',0.65,'updateThresh',0.61);
 
@@ -138,8 +123,35 @@ if ~isempty(BetaRAN)
 end
 
 
+%}
+%% 신형 ransac _ 속도 증가 by funcs 
 
 
+ransacPar = struct('maxIter',20600,'conf',0.96,'thresh',0.454,'minInlierRatio',0.65,'updateThresh',0.61,'locIters',7, 'damping',0.85,'reg',1e-6);
+[Funcs1, Grads1, ~]=makeFuncsGradsStack(TermsC);
+
+
+residuals1 = abs( FuncsC(PPm_use(:,1),PPm_use(:,2),PPm_use(:,3))*beta_values-1); % N × #term
+inlierMask1 = residuals1 < ransacPar.thresh;
+score1      = sum(inlierMask1);
+
+
+center_shift = mean(PPm_use,1);
+PPm_use_uncenter = PPm_use - center_shift;
+%시행
+[DispRAN,BetaRAN, inlierMaskRAN] = PoliNavigationSolver3_FischerRansac(0,PPm_use,order,length(TermsC),Funcs1,Grads1,ransacPar);
+%
+scoreRAN      = sum(inlierMaskRAN);
+
+if ~isempty(BetaRAN)
+    PPm_use_unbias = PPm_use - DispRAN;
+    residuals2 = abs( FuncsC(PPm_use_unbias(:,1),PPm_use_unbias(:,2),PPm_use_unbias(:,3))*BetaRAN-1); % N × #term
+    inlierMask2 = residuals2 < ransacPar.thresh;
+    score2      = sum(inlierMask2);
+end
+
+
+%}
 %%
 if ~isempty(BetaRAN)
     f1_RAN = TermsC * BetaRAN;

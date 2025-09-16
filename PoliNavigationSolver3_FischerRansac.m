@@ -1,6 +1,6 @@
 %2025 03 31
 function [ResultDisp,  Beta, inlierMask] = ...
-         PoliNavigationSolver3_FischerRansac(isGlobalApproach, PPcoord, order,nT,Funcs,ransacPar)
+         PoliNavigationSolver3_FischerRansac(isGlobalApproach, PPcoord, order,nT,Funcs,Grads,ransacPar)
     if nargin < 5 || isempty(Funcs)
         syms x y z
         Terms = homogeneFischerTerms(order);
@@ -17,7 +17,7 @@ function [ResultDisp,  Beta, inlierMask] = ...
             RansacDisplacementGlobal(PPm_shift,nT,Funcs, ransacPar); %필요없음. 무시하셈
     else
         [ResultDisp0, Beta, inlierMask] = ...
-            RansacWeightedSingleModel(PPm_shift,nT,Funcs, ransacPar);
+            RansacWeightedSingleModel(PPm_shift,nT,Funcs,Grads, ransacPar);
     end
     ResultDisp0;
     ResultDisp = ResultDisp0 + center_shift;     % 원점 복원
@@ -113,7 +113,7 @@ function [bestDisp, bestBeta, bestInlierMask] = RansacDisplacementLocal(coord, n
 
 end
 
-function [bestDisp, bestBeta, bestInMask] = RansacWeightedSingleModel(coord, nT,Funcs, p)
+function [bestDisp, bestBeta, bestInMask] = RansacWeightedSingleModel(coord,nT,Funcs,Grads, p)
     % PPm_use : N×3 point cloud
     % order   : polynomial order
     % Funcs   : used terms
@@ -156,7 +156,7 @@ function [bestDisp, bestBeta, bestInMask] = RansacWeightedSingleModel(coord, nT,
         % 2) provisional β
         coord_unbias = coord-mean(coord(idx,:),1);
         betaTmp = regressionFourthOrder(coord_unbias(idx,:), Funcs);
-        r    = abs(Funcs(coord_unbias(:,1),coord_unbias(:,2),coord_unbias(:,3))*betaTmp - 1);
+        r    = abs(Funcs([coord_unbias(:,1),coord_unbias(:,2),coord_unbias(:,3)])*betaTmp - 1);
         omegaj   = exp(-r.^2/(2*sigma0^2)); %이 iter의 점간 점수 0~1
     
         % 4) score = mean(wj)
@@ -170,8 +170,8 @@ function [bestDisp, bestBeta, bestInMask] = RansacWeightedSingleModel(coord, nT,
             w = sum(omega(inMaskj))/sum(omega);
             
 
-            [dispLoc, betaLoc] = DisplacementLocal(coord(inMaskj,:), order);
-            rLoc  = abs( Funcs(coord(:,1)-dispLoc(1),coord(:,2)-dispLoc(2),coord(:,3)-dispLoc(3))*betaLoc - 1 );
+            [dispLoc, betaLoc] = DisplacementLocal(coord(inMaskj,:), Funcs,Grads);
+            rLoc  = abs( Funcs([coord(:,1)-dispLoc(1),coord(:,2)-dispLoc(2),coord(:,3)-dispLoc(3)])*betaLoc - 1 );
             inMaskLoc = rLoc < p.thresh;
             wLoc = sum(omega(inMaskLoc))/sum(omega); % w 
             p.maxIter = min(p.maxIter, ...
@@ -223,60 +223,72 @@ end
 
 
     
-function [DispOut, Beta] = DisplacementLocal(coord, Funcs, Grad, p) %DisplacementLocal(coord,order,Funcs)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
-    syms x y z
+function [DispOut, Beta] = DisplacementLocal(coord, Funcs, Grads, p) %DisplacementLocal(coord,order,Funcs)
+                   
+    if nargin<4 || isempty(p)
+        p.locIters  = 7;
+        p.damping   = 0.85;
+        p.momentum  = 0.66;
+        p.reg       = 1e-6;
+        p.tol       = 0;       % 0이면 미사용
+        p.verbose   = false;
+    end
+    %syms x y z
     %TermsB = homogeneFischerTerms(order);
     %betaB = sym('beta', [1, length(TermsB)]);
-    f2 = sum(betaB .* TermsB); % 4변수 심볼릭
-    FuncsB = matlabFunction(TermsB); % 함수화
+    %f2 = sum(betaB .* TermsB); % 4변수 심볼릭
+    %FuncsB = matlabFunction(TermsB); % 함수화
 
-    difx = diff(f2, x); % 3변수 미분
-    dify = diff(f2, y);
-    difz = diff(f2, z);
-    f2_numeric = matlabFunction(f2, 'Vars', {[x, y, z], betaB});
-    d1_numeric = matlabFunction(difx, 'Vars', {[x, y, z], betaB});
-    d2_numeric = matlabFunction(dify, 'Vars', {[x, y, z], betaB});
-    d3_numeric = matlabFunction(difz, 'Vars', {[x, y, z], betaB});
+    %difx = diff(f2, x); % 3변수 미분
+    %dify = diff(f2, y);
+    %difz = diff(f2, z);
+    %f2_numeric = matlabFunction(f2, 'Vars', {[x, y, z], betaB});
+    %d1_numeric = matlabFunction(difx, 'Vars', {[x, y, z], betaB});
+    %d2_numeric = matlabFunction(dify, 'Vars', {[x, y, z], betaB});
+    %d3_numeric = matlabFunction(difz, 'Vars', {[x, y, z], betaB});
     
 
     coord_use = coord;
-    [beta_values,error]    = regressionFourthOrder( coord_use,FuncsB);
-        error_shift = error;  % 초기 에러 설정
+    [beta_values,error]    = regressionFourthOrder( coord_use,Funcs);
+    error_shift = error;  % 초기 에러 설정
     
-    shift_1= [0;0;0];
-    shiftSet = [];
-    shift1Set = [];
-    shiftResidueSet = [0;0;0];
-    shiftSum = [0 ; 0 ; 0];
-    numIterations = 7;  % 반복 횟수 설정
-   
-    for i = 1:numIterations
-        % 미분함수에 정의
+    
+    centerSum = [0 ; 0 ; 0];
+    v        = [0;0;0];
+    N  = size(coord_use,1);
+    for it = 1:p.locIters
+        % 1) 그래디언트: (3N×nT)*(nT×1) → (3N×1) → N×3
+        Gstack = Grads(coord_use);            % (3N)×nT
+        GradVal   = Gstack * beta_values(:);            % (3N)×1
         
-        dx = d1_numeric( coord_use, beta_values.');
-        dy = d2_numeric( coord_use, beta_values.');
-        dz = d3_numeric( coord_use, beta_values.');
+        %dx = d1_numeric( coord_use, beta_values.');
+        %dy = d2_numeric( coord_use, beta_values.');
+        %dz = d3_numeric( coord_use, beta_values.');
         
-        dxyz = [dx dy dz];
+       
+        Gx = GradVal(1:N);
+        Gy = GradVal(N+1:2*N);
+        Gz = GradVal(2*N+1:3*N);
+        Gxyz = [Gx, Gy, Gz];  
         
-        [shift, ~] = regressionShift( coord_use, error_shift,dxyz);% 함수 결과값부터 부호가 반대
-        
-        
-        shift_1 = shift*0.85 + shift_1*0.66;
-        shiftSum = shiftSum - shift_1;
-        
+        [delta, ~] = regressionShift( coord_use, error_shift,Gxyz);% 함수 결과값부터 부호가 반대
         
         
-        coord_use =  coord_use + shift_1.';
+        v      = p.momentum*v + p.damping*delta;
+        center  = -v ;
+        centerSum = centerSum + center;
         
-        [beta_values, error_shift] = regressionFourthOrder(coord_use,FuncsB);
+        
+        
+        coord_use =  coord_use - center.';
+        
+        [beta_values, error_shift] = regressionFourthOrder(coord_use,Funcs);
         
         %0.001s 
         
     end
     
-    DispOut = shiftSum.';
+    DispOut = centerSum.';
     Beta = beta_values;
 
 end
