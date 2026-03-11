@@ -9,7 +9,8 @@ function points = generateRandomPointsOnCube(N)
             % Store valid (x, y, z) combinations
         for z_val = z_values
             if size(points, 1) < N
-                points(end+1, :) = [x, y, z_val];  % Add new point
+                points(end+1, :) = [x, y, z_val];
+                %points(end+1, :) = [x, y, -z_val];% Add new point
             else
                 break;
             end
@@ -20,7 +21,7 @@ function points = generateRandomPointsOnCube(N)
       
         x1 = 1;
                 
-        if x >= 0
+        if x1 >= 0
             % Calculate real x values
             x = nthroot(x1, 1);
             x_values = [x, -x];
@@ -29,8 +30,9 @@ function points = generateRandomPointsOnCube(N)
             for x_val = x_values
                 if size(points, 1) < N
                     points(end+1, :) = [x_val, y, z];  % Add new point
+                    
                 else
-                    break;
+                     break;
                 end
             end
         end

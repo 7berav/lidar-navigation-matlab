@@ -16,8 +16,10 @@ function [Funcs, Grads, nT] = makeFuncsGradsStack(Terms)
     Funcs = matlabFunction(phi, 'Vars',{[x y z]});
 
     % gradStackFun(XYZ) → (3N)×nT, 블록순서 [dx; dy; dz]
-    dpxFun = matlabFunction(dpx, 'Vars',{[x y z]});
-    dpyFun = matlabFunction(dpy, 'Vars',{[x y z]});
+    %dpxFun = matlabFunction(dpx, 'Vars',{[x y z]});
+    %dpyFun = matlabFunction(dpy, 'Vars',{[x y z]});
+    dpxFun = makeVecFun(dpx, {[x y z]});
+    dpyFun = makeVecFun(dpy, {[x y z]});
     dpzFun = makeVecFun(dpz, {[x y z]});
 
     %Grads = @(XYZ) [ dpxFun(XYZ); dpyFun(XYZ); dpzFun(XYZ) ]; % 3*nT

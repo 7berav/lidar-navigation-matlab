@@ -1,6 +1,6 @@
 %2025 03 31
 function [ResultDisp,  Beta, inlierMask] = ...
-         PoliNavigationSolver3_FischerRansac(isGlobalApproach, PPcoord, order,nT,Funcs,Grads,ransacPar)
+         PoliNavigationSolver3_2_FischerRansac_MC(isGlobalApproach, PPcoord, order,nT,Funcs,Grads,ransacPar)
     if nargin < 5 || isempty(Funcs)
         syms x y z
         Terms = homogeneFischerTerms(order);
@@ -49,8 +49,8 @@ function [bestDisp, bestBeta, bestInlierMask] = RansacDisplacementLocal(coord, n
     else
         w = 0.5;
     end
-    p.maxIter = min(p.maxIter, ...
-        ceil(log(1-p.conf)/log(max(realmin,1-w^k))));
+    %p.maxIter = min(p.maxIter, ...
+    %    ceil(log(1-p.conf)/log(max(realmin,1-w^k))));
 
     bestScore = 0;   bestBeta = [];  bestDisp = [0;0;0];
     bestInlierMask = false(N,1);
@@ -71,13 +71,13 @@ function [bestDisp, bestBeta, bestInlierMask] = RansacDisplacementLocal(coord, n
         % 4) 인라이어 집합
         inlierMask = residuals < p.thresh;
         score      = sum(inlierMask);
-        %disp(score);
+        
         % 5) 최고 모델 갱신
         if score > bestScore
             bestScore       = score;
             bestInlierMask  = inlierMask;
             bestBeta        = beta_tmp;
-            fprintf('Best Score (before) : %d \t',bestScore);
+            %fprintf('Best Score (before) : %d \t',bestScore);
             if score > w*N   
                 w = score/N;  % w 업데이트 
             end   
@@ -92,15 +92,11 @@ function [bestDisp, bestBeta, bestInlierMask] = RansacDisplacementLocal(coord, n
             inlierMask_temp = residuals_temp < p.thresh;
             score      = sum(inlierMask_temp);
             inlierCoord_temp = coord(inlierMask_temp,:);
-            fprintf('(after) : %d \n',score);
+            %fprintf('(after) : %d \n',score);
             
 
-            %h = scatter3(inlierCoord_temp(:,1), inlierCoord_temp(:,2), inlierCoord_temp(:,3), 2, cmap(tgt,:), 'filled');
-            axis equal;
-            %pauseTime = 2.5;
-            %drawnow;
-            %pause(pauseTime);
-            %delete(h);
+           axis equal;
+
             tgt = tgt + 1;
         end
         if iter >= p.maxIter, break; end
@@ -125,7 +121,7 @@ function [bestDisp, bestBeta, bestInMask] = RansacWeightedSingleModel(coord,nT,F
     % ── 초기 설정 ──────────────────────────────────────────────────
     N    = size(coord,1);
     
-    k    = round(1.40 * nT); % 수치 크게 할수록 데이터 많이 걸리고, 딱히 성능이 나빠지지는 않음. 낮추면 애초에 좋은 샘플을 못뽑음. 
+    k    = round(p.k * nT); % 수치 크게 할수록 데이터 많이 걸리고, 딱히 성능이 나빠지지는 않음. 낮추면 애초에 좋은 샘플을 못뽑음. 
 
     sigma0 = 0.13;
     sigma  = sigma0;
@@ -134,57 +130,85 @@ function [bestDisp, bestBeta, bestInMask] = RansacWeightedSingleModel(coord,nT,F
     else
         w = 0.5;
     end
-    p.maxIter = min(p.maxIter, ...
+
+
+    % ====== [MC ADD] Monte Carlo 옵션/로그 버퍼 ======
+    mc.on        = isfield(p,'mc') && ~isempty(p.mc) && isfield(p.mc,'on') && p.mc.on;
+    mc.var       = '';   if mc.on && isfield(p.mc,'saveVarName'), mc.var  = p.mc.saveVarName; end
+    mc.file      = '';   if mc.on && isfield(p.mc,'saveMatFile'), mc.file = p.mc.saveMatFile; end
+    %mc.localOff  = false;if mc.on && isfield(p.mc,'localOff'),    mc.localOff = logical(p.mc.localOff); end
+    mc.keepBestPerIter = true; % 고정
+    if mc.on
+        %score_raw, score_loc, elapsed_ms
+        IterLog = nan(p.maxIter, 4);
+    end
+
+    if ~isfield(p,'sim'), p.sim = struct(); end
+    if ~isfield(p.sim,'freezeW'),     p.sim.freezeW = true;     end   % w 갱신 동결
+    if ~isfield(p.sim,'freezeIter'),  p.sim.freezeIter = true;  end   % p.maxIter 동적 갱신 금지
+    %if ~isfield(p.sim,'freezeSigma'), p.sim.freezeSigma = false; end   % sigma 적응 금지
+    if ~isfield(p.sim,'freezeOmega'), p.sim.freezeOmega = false; end   % omega(샘플링 가중) 갱신 동결
+    omega_min = 1e-6;
+    
+    if ~p.sim.freezeIter
+            p.maxIter = min(p.maxIter, ...
         ceil(log(1-p.conf)/log(max(realmin,1-w^k)))); %신뢰구간 내 샘플링 횟수
+    end
 
-
+    
     % 가중치 누적용
     omega    = ones(N,1)*0.33; 
     omegajLoc= zeros(N,1);
     Ssum = 4.6;% 클수록 천천히 w 반영 /0.4 하면 대충 몇번 후에 초기가중치 탈피하는지 판단 가능. 2,3만 아니면 됨
-    
+    SjLoc = NaN;
+
     bestScore = 0.13; %어짜피 갱신될거 충분히 작게. 
     bestBeta  = [];
     bestDisp  = [0,0,0];
     bestInMask = false(N,1);
     target = 1;
     % 반복
-    for iter = 1:p.maxIter
-        % 1) uniform 또는 가중치 기반 샘플링
 
+    for iter = 1:p.maxIter
+        raw_tic = tic;
+        %disp(iter);
+        % 1) uniform 또는 가중치 기반 샘플링
         idx = randsample(1:N, k, true, omega);%omega 기반 샘플링
         % 2) provisional β
         coord_unbias = coord-mean(coord(idx,:),1);
         betaTmp = regressionFourthOrder(coord_unbias(idx,:), Funcs);
         r    = abs(Funcs([coord_unbias(:,1),coord_unbias(:,2),coord_unbias(:,3)])*betaTmp - 1);
         omegaj   = exp(-r.^2/(2*sigma0^2)); %이 iter의 점간 점수 0~1
-    
         % 4) score = mean(wj)
         Sj = mean(omegaj);
-        %disp(Sj);
+        raw_ms = 1000 * toc(raw_tic);
         % 5) 갱신 조건: “최고 점수의 updateThresh 이상일 때”
         if Sj >= bestScore * p.updateThresh
             % 로컬 최적화 (shift + refit)
-            
+            local_tic = tic;
             inMaskj = r < p.thresh;
-            w = 0.9*w+0.1*sum(omega(inMaskj))/sum(omega);
-            
+            %w = 0.9*w+0.1*sum(omega(inMaskj))/sum(omega);
+            if ~p.sim.freezeW
+                w = 0.9*w + 0.1*sum(omega(inMaskj))/sum(omega);
+            end
 
             [dispLoc, betaLoc] = DisplacementLocal(coord(inMaskj,:), Funcs,Grads,p);
             rLoc  = abs( Funcs([coord(:,1)-dispLoc(1),coord(:,2)-dispLoc(2),coord(:,3)-dispLoc(3)])*betaLoc - 1 );
             inMaskLoc = rLoc < p.thresh;
-            wLoc = sum(omega(inMaskLoc))/sum(omega); % w 
-            p.maxIter = min(p.maxIter, ...
-                2*ceil(log(1-p.conf)/log(max(realmin,min(1-1e-12,1-w^k)))));
-            fprintf('%d',p.maxIter);
+            wLoc = sum(omega(inMaskLoc))/sum(omega); % w
+            if ~p.sim.freezeIter
+                p.maxIter = min(p.maxIter, ...
+                    2*ceil(log(1-p.conf)/log(max(realmin,min(1-1e-12,1-w^k)))));
+                %fprintf('%d',p.maxIter);
+            end
             omegajLoc = exp(-rLoc.^2/(2*sigma^2)); %점수 
-            
-            sigma = std(rLoc)*0.00000+0.99999*sigma;  %능동 편차
             SjLoc = mean(omegajLoc); %점수 증분
-            omega        = (Ssum / (Ssum + SjLoc))*omega + (SjLoc / (Ssum + SjLoc)) * omegajLoc;
-            Ssum         = Ssum + SjLoc;    
-            fprintf('(bef): %d  \t',Sj);
-            fprintf('(aft): %d \t %d %n',SjLoc,wLoc);
+            if ~p.sim.freezeOmega
+                omega        = (Ssum / (Ssum + SjLoc))*omega + (SjLoc / (Ssum + SjLoc)) * omegajLoc;
+                Ssum         = Ssum + SjLoc;    
+                %fprintf('(bef): %d  \t',Sj);
+                %fprintf('(aft): %d \t %d %n',SjLoc,wLoc);
+            end
             if SjLoc >= bestScore
                 % update best
                 bestScore = SjLoc;
@@ -192,17 +216,25 @@ function [bestDisp, bestBeta, bestInMask] = RansacWeightedSingleModel(coord,nT,F
                 bestDisp  = dispLoc;
                 bestInMask= inMaskLoc;
                 %fprintf('(after) : %d ',SjLoc);
-                fprintf('\n w : %d \t Best : %d \n',w, bestScore);
+                %fprintf('\n w : %d \t Best : %d \n',w, bestScore);
                 target = target+1;
             end
-            fprintf('\n');
+            local_ms = 1000 * toc(local_tic);
             if iter >= p.maxIter
                 
                 fprintf('!!break!!\n');
                 break;
             end
+            
+        end
+        if mc.on
+            IterLog(iter, 1:2) = [double(Sj), double(SjLoc)];
+            IterLog(iter, 3:4) = [raw_ms,local_ms];
         end
     end
+    
+
+    %{
     inlierCoord = coord(bestInMask,:);
     figure(4);
     scatter3(coord(:,1),coord(:,2),coord(:,3),2,omega(:),'filled');
@@ -221,6 +253,22 @@ function [bestDisp, bestBeta, bestInMask] = RansacWeightedSingleModel(coord,nT,F
     colorbar
     axis equal;
     drawnow;
+    %}
+    if exist('mc','var') && mc.on
+        % 유효 행만 남기기 (앞쪽 NaN 허용, 뒤쪽 미사용 row 제거)
+        lastIter = find(~isnan(IterLog(:,1)), 1, 'last');
+        if ~isempty(lastIter), IterLog = IterLog(1:lastIter, :); end
+    
+        % 작업공간(base)에 저장 (옵션)
+        if ~isempty(mc.var)
+            assignin('base', mc.var, IterLog); 
+        end
+    
+        % MAT 파일 저장 (옵션)
+        if ~isempty(mc.file)
+            save(mc.file, 'IterLog');
+        end
+    end
 end
 
 

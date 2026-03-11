@@ -13,10 +13,10 @@ vy0_new = -3/2*n*D1_new-2*C2_new;
 
 
 % (2) 시간 범위 설정 
-t = linspace(0, 5400, 100);
+t = linspace(0, 5400, 180);%20초
 x1 = D1_new + C2_new*cos(n*t) + C3_new*sin(n*t);
 y1 = -3/2*n*D1_new.*t - 2*C2_new*sin(n*t) + 2*C3_new*cos(n*t) + C4_new;
-Orbit = [t(:), x1(:), y1(:),zeros(100,1)];
+Orbit = [t(:), x1(:), y1(:),zeros(length(t),1)];
 
 %
 x_max = -20;
@@ -32,10 +32,10 @@ C2_old = x0_old - D1_old;
 C3_old = sqrt(C_norm^2-C2_old^2);
 C4_old = y0_old - 2*C3_old;
 
-t = linspace(-11200, 0, 200);
+t = linspace(-11200, 0, 360);
 x1 = D1_old + C2_old*cos(n*t) + C3_old*sin(n*t);
 y1 = -3/2*n*D1_old.*t - 2*C2_old*sin(n*t) + 2*C3_old*cos(n*t) + C4_old;
-Orbit = [t(:), x1(:), y1(:),zeros(200,1);Orbit];
+Orbit = [t(:), x1(:), y1(:),zeros(length(t),1);Orbit];
 
 figure
 hold on;
@@ -47,7 +47,7 @@ axis equal;
 
 
 %%
-PP01 = generateRandomPointsOnHexagonPrism(100)+randn(100,3)*0.02;
+PP01 = generateRandomPointsOnHexagonPrism(2000)+randn(2000,3)*0.02;
 PP02 = generateRandomPointsOnCube(1000)+randn(1000,3)*0.0005;
 PP03 = generateRandomPointsOnCylinder(7000)+randn(7000,3)*0.0005;
 PP04 = generateRandomPointsOnCube(200);
@@ -57,13 +57,13 @@ PPm_body(:,1) = PPm_body(:,1) * 0.576;
 PPm_body(:,2) = PPm_body(:,2) * 0.576;
 PPm_body(:,3) = PPm_body(:,3) * 1.165;
 
-order = 6;
+order = 4;
 n = [0 sin(35/57.92) cos(35/57.92)];
 w = 0.006;
-t = linspace(-11200, 0, 200).';
+t = linspace(-11200, 0, 360).'; %6초
 quater0= [cos(w*t), sin(w*t)*n(1), sin(w*t)*n(2), sin(w*t)*n(3)];
 
-t = linspace(0, 5400, 100).';
+t = linspace(0, 5400, 180).';
 quater0= [quater0 ;cos(w*t), sin(w*t)*n(1), sin(w*t)*n(2), sin(w*t)*n(3)];
 
 %scatter3(quater0(:,2),quater0(:,3),quater0(:,4))
@@ -74,16 +74,16 @@ syms x y z
 TermsB = homogeneTerm(order);
 FuncsB = matlabFunction(TermsB);
 Qinit = [1;0;0;0];
-Array_Disp=zeros(200,4);
-Array_QB=zeros(200,5);
-Array_BetaB=zeros(200,29);
+Array_Disp=zeros(length(quater0),4);
+Array_QB=zeros(length(quater0),5);
+Array_BetaB=zeros(length(quater0),1+length(TermsB));
+ran = 1:1:540;
 
 [beta_values,error]  = regressionFourthOrder( PP01,FuncsB);
-   
 Binit = beta_values.';
 tic
-for i= 171:180
-    PP01 = generateRandomPointsOnHexagonPrism(100)+randn(100,3)*0.02;
+for i= ran
+    PP01 = generateRandomPointsOnHexagonPrism(2000)+randn(2000,3)*0.02;
     PPm_body = PP01 ;
     PPm_body(:,1) = PPm_body(:,1) * 0.576;
     PPm_body(:,2) = PPm_body(:,2) * 0.576;
@@ -94,7 +94,7 @@ for i= 171:180
     PP_use = PPmR_body - [Orbit(i,2), Orbit(i,3),0];
 
     
-    [DispB,QB,BetaB] = PoliNavigationSolver(0,PP_use,6,Binit,Qinit);
+    [DispB,QB,BetaB] = PoliNavigationSolver(0,PP_use,4,Binit,Qinit);
     %disp(i);
     
     Array_Disp(i,:) = [Orbit(i,1), DispB];
@@ -107,59 +107,85 @@ toc
 %save('ResultNavigation5.mat',"Array_BetaB","Array_Disp","Array_QB"); 
 
 figure 
-plot(Array_Disp(1:5:end,1),Array_Disp(1:5:end,3),'ro','Markersize',3)
+plot(Array_Disp(1:4:end,1),Array_Disp(1:4:end,3),'ro','Markersize',3)
 hold on 
 plot(Orbit(:,1),-Orbit(:,3),'black','LineWidth',1)
 hold off
 xlabel('Time','FontSize',16); ylabel('Y (m)','FontSize',16);
 legend('Estimation','Ground Truth');
-saveas(gcf,'image_ksas\Simulation_y.svg')
-savefig(gcf,'image_ksas\Simulation_y.fig')
+saveas(gcf,'image_scenA_thesis\temp\Simulation_y.svg')
+savefig(gcf,'image_scenA_thesis\temp\Simulation_y.fig')
 figure 
-plot(Array_Disp(1:3:end,1),Array_Disp(1:3:end,2),'ro','Markersize',3)
+plot(Array_Disp(1:4:end,1),Array_Disp(1:4:end,2),'ro','Markersize',3)
 hold on 
 plot(Orbit(:,1),-Orbit(:,2),'black','LineWidth',1)
 hold off
 xlabel('Time','FontSize',16); ylabel('X (m)','FontSize',16);
 legend('Estimation','Ground Truth');
-saveas(gcf,'image_ksas\Simulation_x.svg')
-savefig(gcf,'image_ksas\Simulation_x.fig')
+saveas(gcf,'image_scenA_thesis\temp\Simulation_x.svg')
+savefig(gcf,'image_scenA_thesis\temp\Simulation_x.fig')
+%%
 figure 
-plot(Array_Disp(1:3:end,2),Array_Disp(1:3:end,3),'ro','Markersize',3)
+plot(Array_Disp(1:20:end,3),Array_Disp(1:20:end,2),'ro','Markersize',3)
 hold on 
-plot(-Orbit(:,2),-Orbit(:,3),'black','LineWidth',1)
+plot(-Orbit(:,3),-Orbit(:,2),'black','LineWidth',1)
 hold off
 xlabel('X (m)','FontSize',16); ylabel('Y (m)','FontSize',16);
+xlabel('v-bar (m)','FontSize',16); ylabel('r-bar (m)','FontSize',16);
 axis equal
+
+
 legend('Estimation','Ground Truth');
-saveas(gcf,'image_ksas\Simulation_xy.svg')
-savefig(gcf,'image_ksas\Simulation_xy.fig')
+set(gca,'XDir','reverse')
+xlim([-100 500]);ylim([-120 120]);
+
+saveas(gcf,'image_scenA_thesis\temp\Simulation_xy.svg')
+savefig(gcf,'image_scenA_thesis\temp\Simulation_xy.fig')
+%%
 figure
-tempx = Array_Disp(1:131,2)+Orbit(170:300,2);
-tempy = Array_Disp(1:131,3)+Orbit(170:300,3);
+tempx = Array_Disp(ran,2)+Orbit(ran,2);
+tempy = Array_Disp(ran,3)+Orbit(ran,3);
 norm2 = sqrt(tempx.^2 + tempy.^2);
 histogram(norm2,'NumBins',10);
-rms_val = sqrt(mean(norm2.^2))
-max_val = max(abs(norm2))
-std_val = std(norm2)
+xlabel('2-Norm Estimation Error (m)','FontSize',16);
+ylabel('Frequency (count)','FontSize',16)
 
-
+rms_val = sqrt(mean(norm2.^2));
+max_val = max(abs(norm2));
+std_val = std(norm2);
+disp(rms_val);
+mean(norm2)
+disp(max_val);
+disp(std_val);
+%%
+%{
 rms_val = sqrt(mean(error.^2));
 max_val = max(abs(error));
 std_val = std(error);
 figure 
-plot(Array_Disp(1:131,2)+Orbit(170:300,2),Array_Disp(1:131,3)+Orbit(170:300,3),'ro','Markersize',3)
+plot(Array_Disp(ran,2)+Orbit(ran,2),Array_Disp(ran,3)+Orbit(ran,3),'ro','Markersize',3)
 xlabel('X (m)','FontSize',16); ylabel('Y (m)','FontSize',16);
 axis equal
-saveas(gcf,'image_ksas\Simulation_error.svg')
-savefig(gcf,'image_ksas\Simulation_error.fig')
-
-
-
+saveas(gcf,'image_scenA_thesis\temp\Simulation_error.svg')
+savefig(gcf,'image_scenA_thesis\temp\Simulation_error.fig')
+%}
+%%
+figure(7)
+plot(h_v_v(1:1:54),h_r_r(1:1:54),'ro','Markersize',3)
+hold on 
+plot(h_v_v0(:),h_r_r0(:),'black','LineWidth',1)
+hold off
+xlabel('v-bar (m)','FontSize',16); ylabel('r-bar (m)','FontSize',16);
+axis equal
+xlim([-500 100]);
+ylim([-120 120]);
+legend('Estimation','Ground Truth');
+set(gca,'XDir','reverse')
+%%
 figure
-scatter3(Array_QB(1:131,3),Array_QB(1:131,4),Array_QB(1:131,5),3,'ro','filled');
+scatter3(Array_QB(ran,3),Array_QB(ran,4),Array_QB(ran,5),3,'ro','filled');
 hold on
-scatter3(quater0(170:300,2),quater0(170:300,3),quater0(170:300,4),3,'k','filled');
+scatter3(quater0(ran,2),quater0(ran,3),quater0(ran,4),3,'k','filled');
 hold off
 xlabel('q1','FontSize',16); ylabel('q2','FontSize',16);zlabel('q3','FontSize',16);
 axis equal
