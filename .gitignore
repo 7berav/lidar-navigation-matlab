@@ -40,7 +40,6 @@ maincode_makecompsat.m
 maincode_montecarlo_q.m
 maincode_simulation.m
 makePhiAndGradStack.m
-makeVecFun.m
 make_digraph_from_ugraph.m
 makeimgae.m
 mixingmodels.m
