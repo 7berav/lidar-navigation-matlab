@@ -22,7 +22,6 @@ PoliNavigationSolver3_Fit.m
 PoliNavigationSolver3_Ransac.m
 TestDisplacementLocal.m
 calculateDerivative.m
-calculateFourthOrder.m
 equation2string.m
 equationsort.m
 evaluateModel.m
