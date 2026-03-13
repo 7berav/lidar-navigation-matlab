@@ -1,13 +1,26 @@
 %2025 03 31
 function [ResultDisp,  Beta, inlierMask,Log] = ...
-         PoliNavigationSolver3_3_FischerRansac_MC(isGlobalApproach, PPcoord, order,nT,Funcs,Grads,ransacPar)
+         PoliNavigationSolver3_3_FischerRansac_MC(isGlobalApproach, PPcoord, order,nT,Funcs,Grads,ransacPar,lambda)
+    % lambda (optional, default 0): ridge L2 penalty passed to regressionFourthOrder
+    %   0       => OLS  (기존 동작)
+    %   1e-4 ~  => ridge (고차항 과적합 억제)
+    % ransacPar.lambda 보다 이 인수가 우선됨.
+    if nargin < 8 || isempty(lambda)
+        if isfield(ransacPar, 'lambda')
+            lambda = ransacPar.lambda;
+        else
+            lambda = 0;
+        end
+    end
+    ransacPar.lambda = lambda;   % 하위 함수로 일원화해서 전달
+
     if nargin < 5 || isempty(Funcs)
         syms x y z
         Terms = homogeneFischerTerms(order);
         Funcs  = matlabFunction(Terms, 'Vars', [x,y,z]);
         nT = numel(Terms);
     end
-    
+
     PPm = PPcoord;                               % 원본
     center_shift = mean(PPm,1);
     PPm_shift   = PPm - center_shift;            % 원점 이동
