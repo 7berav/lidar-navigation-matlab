@@ -114,10 +114,17 @@ function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,
     % order   : polynomial order
     % Funcs   : used terms
     % p       : struct with fields
-    % 
+    %            p.lambda (optional, default 0): ridge penalty for regressionFourthOrder
     %
     % Returns bestBeta, bestDisp and accumulated soft‐weight W (N×1).
-    
+
+    % ── Ridge lambda ──────────────────────────────────────────────
+    if isfield(p, 'lambda')
+        lambda = p.lambda;
+    else
+        lambda = 0;   % OLS (기존 동작과 동일)
+    end
+
     % ── 초기 설정 ──────────────────────────────────────────────────
     N    = size(coord,1);
     
@@ -187,7 +194,8 @@ function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,
         'inlierR', {}, ...    % inlier ratio
         'SDF_RMS', {}, ...    % 그 iter 모델 기준 SDF RMS
         'SDF_P50', {}, ...    % 그 iter 모델 기준 SDF P50
-        'Disp', {}, ...        
+        'Disp', {}, ...
+        'betaNorm', {}, ...   % ||beta||^2 — ridge 정규화 효과 확인용
         'TP', {}, ...
         'FP', {}, ...
         'FN', {}, ...
@@ -206,6 +214,7 @@ function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,
         SDF_P50    = NaN;
         disp_for_log = [NaN NaN NaN];
         inlierR_for_log = NaN;
+        betaNorm_for_log = NaN;
 
         TP_for_log = NaN;
         FP_for_log = NaN;
@@ -217,9 +226,9 @@ function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,
 
         % 1) uniform 또는 가중치 기반 샘플링
         idx = randsample(1:N, k, true, omega);%omega 기반 샘플링
-        % 2) provisional β
+        % 2) provisional β  (ridge if lambda > 0)
         coord_unbias = coord-mean(coord(idx,:),1);
-        betaTmp = regressionFourthOrder(coord_unbias(idx,:), Funcs);
+        betaTmp = regressionFourthOrder(coord_unbias(idx,:), Funcs, lambda);
         r    = abs(Funcs([coord_unbias(:,1),coord_unbias(:,2),coord_unbias(:,3)])*betaTmp - 1);
         omegaj   = exp(-r.^2/(2*sigma0^2)); %이 iter의 점간 점수 0~1
         % 4) score = mean(wj)
@@ -248,7 +257,7 @@ function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,
             %Log(iter).w        = double(w);
             %Log(iter).maxN     = double(2*ceil(log(1-p.conf)/log(max(realmin,min(1-1e-12,1-w^k)))));
 
-            [dispLoc, betaLoc] = DisplacementLocal(coord(inMaskj,:), Funcs,Grads,p);
+            [dispLoc, betaLoc] = DisplacementLocal(coord(inMaskj,:), Funcs,Grads,p,lambda);
             rLoc  = abs( Funcs([coord(:,1)-dispLoc(1),coord(:,2)-dispLoc(2),coord(:,3)-dispLoc(3)])*betaLoc - 1 );
             inMaskLoc = rLoc < p.thresh;
             wLoc = sum(omega(inMaskLoc))/sum(omega); % w
@@ -298,6 +307,7 @@ function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,
             %Log(iter).inlierR   = mean(inMaskLoc);
 
             inlierR_for_log     = mean(inMaskLoc);
+            betaNorm_for_log    = betaLoc(:).' * betaLoc(:);   % ||beta||^2
             
             if mc.hasGT 
                 gt = mc.gtMask;   % N×1 logical
@@ -334,6 +344,7 @@ function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,
         Log(iter).postScore = double(SjLoc);
         Log(iter).t_loc_ms  = double(local_ms);
         Log(iter).inlierR   = double(inlierR_for_log);
+        Log(iter).betaNorm  = double(betaNorm_for_log);
         Log(iter).w        = double(w);
         Log(iter).maxN     = double(2*ceil(log(1-p.conf)/log(max(realmin,min(1-1e-12,1-w^k)))));
         Log(iter).TP        = double(TP_for_log);
@@ -391,8 +402,11 @@ end
 
 
     
-function [DispOut, Beta] = DisplacementLocal(coord, Funcs, Grads, p) %DisplacementLocal(coord,order,Funcs)
-                   
+function [DispOut, Beta] = DisplacementLocal(coord, Funcs, Grads, p, lambda)
+    % lambda (optional): ridge penalty passed from RansacWeightedSingleModel
+    if nargin < 5 || isempty(lambda)
+        lambda = 0;
+    end
     if nargin<4 || isempty(p)
         p.locIters  = 7;
         p.damping   = 0.85;
@@ -401,13 +415,13 @@ function [DispOut, Beta] = DisplacementLocal(coord, Funcs, Grads, p) %Displaceme
         p.tol       = 0;       % 0이면 미사용
         p.verbose   = false;
     end
-   
+
     coord_center = mean(coord, 1);
-    coord_use = coord  - coord_center; 
-    [beta_values,error]    = regressionFourthOrder( coord_use,Funcs);
+    coord_use = coord  - coord_center;
+    [beta_values,error]    = regressionFourthOrder(coord_use, Funcs, lambda);
     error_shift = error;  % 초기 에러 설정
-    
-    
+
+
     centerSum = [0 ; 0 ; 0];
     v        = [0;0;0];
     N  = size(coord_use,1);
@@ -415,29 +429,29 @@ function [DispOut, Beta] = DisplacementLocal(coord, Funcs, Grads, p) %Displaceme
         % 1) 그래디언트: (3N×nT)*(nT×1) → (3N×1) → N×3
         Gstack = Grads(coord_use);            % (3N)×nT
         GradVal   = Gstack * beta_values(:);            % (3N)×1
-        
+
         %dx = d1_numeric( coord_use, beta_values.');
         %dy = d2_numeric( coord_use, beta_values.');
         %dz = d3_numeric( coord_use, beta_values.');
-        
-       
+
+
         Gx = GradVal(1:N);
         Gy = GradVal(N+1:2*N);
         Gz = GradVal(2*N+1:3*N);
-        Gxyz = [Gx, Gy, Gz];  
-        
+        Gxyz = [Gx, Gy, Gz];
+
         [delta, ~] = regressionShift( coord_use, error_shift,Gxyz);% 함수 결과값부터 부호가 반대
-        
-        
+
+
         v      = p.momentum*v + p.damping*delta;
         center  = -v ;
         centerSum = centerSum + center;
-        
-        
-        
+
+
+
         coord_use =  coord_use - center.';
-        
-        [beta_values, error_shift] = regressionFourthOrder(coord_use,Funcs);
+
+        [beta_values, error_shift] = regressionFourthOrder(coord_use, Funcs, lambda);
         
         %0.001s 
         

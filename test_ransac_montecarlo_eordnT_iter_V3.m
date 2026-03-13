@@ -11,6 +11,8 @@ PP12 = generateRandomPointsOnCylinder(10400) + randn(10400,3)*0.007;  % inlier p
 PP13 = generateRandomPointsOnCube(10400) + randn(10400,3)*0.007;  % inlier pool
 
 % 고정 RANSAC 파라미터(필요 필드만 세팅)
+% lambda: ridge 페널티 (0 = OLS, 양수로 올릴수록 고차항 억제)
+% 권장 탐색 범위: 0(OLS) / 1e-4 / 1e-3 / 1e-2
 ransacPar = struct( ...
   'maxIter', Niter, ...
   'conf', 0.96, ...
@@ -21,7 +23,8 @@ ransacPar = struct( ...
   'momentum', 0.66, ...
   'damping', 0.85, ...
   'reg', 1e-6, ...
-  'k', 1.4 ...              % 루프에서 덮어씀
+  'k', 1.4, ...             % 루프에서 덮어씀
+  'lambda', 1e-3 ...        % ridge penalty (0 = OLS)
 );
 %ransacPar.mc  = struct('on', true, 'saveVarName', 'MC_scores_tmp', 'saveMatFile','', 'time', true, 'localOff', false);
 ransacPar.mc  = struct( ...
@@ -129,8 +132,8 @@ end
 newOrder = { ...
     'pid', 'Qid', 'sigma', 'error', 'q', 'iter', 'N', ...   % 앞에 오게 하고 싶은 것들
     'preScore', 'postScore', 't_raw_ms', 't_loc_ms', ...
-    'w', 'maxN', 'inlierR', 'SDF_RMS', 'SDF_P50', 'Disp', ...
-    'TP', 'FP', 'FN', 'TN', 'precision', 'recall', 'F1' ... 
+    'w', 'maxN', 'inlierR', 'betaNorm', 'SDF_RMS', 'SDF_P50', 'Disp', ...
+    'TP', 'FP', 'FN', 'TN', 'precision', 'recall', 'F1' ...
 };
 ResRAN = orderfields(ResRAN, newOrder);
 T = struct2table(ResRAN);
@@ -221,8 +224,8 @@ idx = T.error == target_eps ;
 
 Tsub = T(idx,:);
 iterIdx = (1:height(Tsub)).';
-figure('Position',[100 100 560 740]);
-tiledlayout(3,1);
+figure('Position',[100 100 560 900]);
+tiledlayout(4,1);
 
 % 1) w
 nexttile;
@@ -237,7 +240,7 @@ nexttile;
 plot(iterIdx, Tsub.maxN, '-','LineWidth', 1.2);
 xlabel('Iteration');
 ylabel('maxN (estimated maxIter)');
-xlim([0 10000]); 
+xlim([0 10000]);
 ylim([0 20000]);
 %title('maxIter estimate vs iter');
 grid on;
@@ -247,11 +250,19 @@ nexttile;
 plot(iterIdx, Tsub.inlierR, '.-','MarkerSize', 6,'LineWidth', 1.2);
 xlabel('Iteration');
 ylabel('inlierR');
-ylabel('maxN (estimated maxIter)');
-xlim([0 10000]); 
+xlim([0 10000]);
 ylim([0 1])
 %title('inlier ratio vs iter');
 grid on;
+
+% 4) betaNorm  — ridge 효과: 값이 작고 안정적일수록 과적합 억제됨
+nexttile;
+semilogy(iterIdx, Tsub.betaNorm, '.-','MarkerSize', 4,'LineWidth', 1.0);
+xlabel('Iteration');
+ylabel('||beta||^2  (log)');
+xlim([0 10000]);
+grid on;
+title(sprintf('beta norm (lambda=%.0e)', ransacPar.lambda));
 
 %% 정밀도
 figure('Position',[100 100 560 740]);
