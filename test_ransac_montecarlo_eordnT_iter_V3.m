@@ -240,8 +240,11 @@ nexttile;
 plot(iterIdx, Tsub.maxN, '-','LineWidth', 1.2);
 xlabel('Iteration');
 ylabel('maxN (estimated maxIter)');
-xlim([0 10000]);
-ylim([0 20000]);
+
+
+xlim([0 10000]); 
+ylim([0 40000]);
+
 %title('maxIter estimate vs iter');
 grid on;
 
