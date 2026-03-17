@@ -3,7 +3,7 @@ totalN       = 10000;
 eps_list     = [0.10 0.2 0.3]; %[0.00 0.10 0.20 0.30];
 k_list       = [1.4];            % nT 배수 (저장명에는 round(10*k) 사용)
 order_list   = [6];
-Niter        = 10000;
+Niter        = 2000;
 
 PP11 = generateRandomPointsOnHexagonPrism(10400) + randn(10400,3)*0.007;  % inlier pool
 PP14 = (2*rand(5000,3)-1)*2;                                             % outlier pool (Uniform[-2,2])
@@ -24,7 +24,7 @@ ransacPar = struct( ...
   'damping', 0.85, ...
   'reg', 1e-6, ...
   'k', 1.4, ...             % 루프에서 덮어씀
-  'lambda', 1e-3 ...        % ridge penalty (0 = OLS)
+  'lambda', 3e-3 ...        % ridge penalty (0 = OLS)
 );
 %ransacPar.mc  = struct('on', true, 'saveVarName', 'MC_scores_tmp', 'saveMatFile','', 'time', true, 'localOff', false);
 ransacPar.mc  = struct( ...
@@ -136,7 +136,7 @@ newOrder = { ...
     'TP', 'FP', 'FN', 'TN', 'precision', 'recall', 'F1' ...
 };
 ResRAN = orderfields(ResRAN, newOrder);
-T = struct2table(ResRAN);
+T = struct2table(ResRAN); % 전체 iter 결과 표
 %%
 %{
 
@@ -214,9 +214,9 @@ if ~isempty(BetaRAN)
     %}
 end
 %% 시계열분석
+%figure
 
-
-target_eps   = 0.20;
+target_eps   = 0.10;
 %target_k     = 1.2;
 target_order = 4;
 
@@ -295,13 +295,13 @@ ylim([0 1]); grid on;
 
 %%
 
-order_list  = [4 6 ];                    % ← order 먼저
+order_list  = [ 6 ];                    % ← order 먼저
 w_list_pct  = [10 20 30];
 k_list_pct  = [14];
 Niter       = 10000;
-timelim     = [30 60];
+timelim     = [60];
 %timelim     = [20];
-outdir = fullfile(pwd, ['image_hex\enT_246_6_th065']);
+outdir = fullfile(pwd, ['test_ridge\enT_246_6_th065']);
 if ~exist(outdir,'dir'), mkdir(outdir); end
 
 for oi = 1:numel(order_list)
@@ -412,3 +412,34 @@ for oi = 1:numel(order_list)
     end
   end
 end
+
+
+%%
+X_use = calculateFourthOrder(PPm_use, Funcs1);   % N × nT
+
+% X^TX 고유값 (p×p 연산, 빠름)
+XTX = X_use' * X_use;
+ev  = sort(eig(XTX), 'descend');
+
+fprintf('항 수(p)       : %d\n', numel(ev))
+fprintf('최대 고유값    : %.4e\n', ev(1))
+fprintf('최소 고유값    : %.4e\n', ev(end))
+fprintf('조건수         : %.4e\n', ev(1)/ev(end))
+fprintf('중앙값         : %.4e\n', median(ev))
+fprintf('\n--- λ별 최소 고유값 방향 shrinkage ---\n')
+for lam = [1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 0.1]
+    s_min = ev(end) / (ev(end) + lam);
+    s_med = median(ev) / (median(ev) + lam);
+    s_max = ev(1)   / (ev(1)   + lam);
+    fprintf('λ=%.0e  s_min=%.3f  s_med=%.3f  s_max=%.3f\n', lam, s_min, s_med, s_max)
+end
+
+% 분포 시각화
+figure;
+semilogy(ev, 'o-', 'MarkerSize', 4)
+yline(1e-4, '--r', 'λ=1e-4')
+yline(1e-2, '--b', 'λ=1e-2')
+xlabel('고유값 index (큰→작은)')
+ylabel('고유값 (σ²)')
+title('X^TX 고유값 분포')
+grid on

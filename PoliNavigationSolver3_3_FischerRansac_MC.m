@@ -42,86 +42,6 @@ end
 % ============================================================================
 % RANSAC (Weighted Single Model)
 % ============================================================================
-function [bestDisp, bestBeta, bestInlierMask] = RansacDisplacementLocal(coord, nT,Funcs, p)
-    % coord           : N×3,  원점 이동된 점군
-    % order           : 다항식 차수
-    % p               : ransacPar 구조체
-    % bestDisp        : Σshift_k,   your 기존 DispOut 개념
-    % bestBeta        : 최종 Beta  (cols = #term)
-    % bestInlierMask  : N×1 logical
-
-    % ── 사전 계산 ──────────────────────────────────────────────
-    terms  = homogeneTerm(order);      % 아래 함수 이미 보유
-    k      = 2*numel(terms);             % 최소 샘플 크기
-    N      = size(coord,1);
- 
-    %Funcs  = matlabFunction(terms);
-    % RANSAC 반복 횟수 N_i = log(1-conf) / log(1-w^k)
-    if isfield(p,'minInlierRatio')
-        w = p.minInlierRatio;
-    else
-        w = 0.5;
-    end
-    %p.maxIter = min(p.maxIter, ...
-    %    ceil(log(1-p.conf)/log(max(realmin,1-w^k))));
-
-    bestScore = 0;   bestBeta = [];  bestDisp = [0;0;0];
-    bestInlierMask = false(N,1);
-    tgt = 1;
-    for iter = 1:p.maxIter
-        % 1) 무작위 최소 샘플 선택
-        idx = randperm(N,k);
-        subset = coord(idx,:);
-
-        % 2) 모델 추정 ─ 기존 DisplacementLocal의 “shift 최적화” 없이
-        %    첫 회 귀찮으면 regressionFourthOrder로만 Beta 예비 추정:
-
-        [beta_tmp, ~] = regressionFourthOrder(subset, Funcs);
-
-        % 3) 전체 잔차 계산
-        residuals = calcPolyResidual(coord,beta_tmp, Funcs);
-        
-        % 4) 인라이어 집합
-        inlierMask = residuals < p.thresh;
-        score      = sum(inlierMask);
-        
-        % 5) 최고 모델 갱신
-        if score > bestScore
-            bestScore       = score;
-            bestInlierMask  = inlierMask;
-            bestBeta        = beta_tmp;
-            %fprintf('Best Score (before) : %d \t',bestScore);
-            if score > w*N   
-                w = score/N;  % w 업데이트 
-            end   
-            %disp(residuals.');
-            ceil(log(1-p.conf)/log(max(realmin,1-w^k)));
-            p.maxIter = min(p.maxIter, ...
-                  ceil(log(1-p.conf)/log(max(realmin,1-w^k))));
-            inlierCoord = coord(bestInlierMask,:);
-
-            [bestDisp, bestBeta] = DisplacementLocal(inlierCoord, order);
-            residuals_temp = calcPolyResidual(coord-bestDisp,bestBeta, Funcs);
-            inlierMask_temp = residuals_temp < p.thresh;
-            score      = sum(inlierMask_temp);
-            inlierCoord_temp = coord(inlierMask_temp,:);
-            %fprintf('(after) : %d \n',score);
-            
-
-           axis equal;
-
-            tgt = tgt + 1;
-        end
-        if iter >= p.maxIter, break; end
-    end
-
-    % 6) 인라이어로 모델 재추정 (+ shift loop 활용)
-    inlierCoord = coord(bestInlierMask,:);
-    [bestDisp, bestBeta] = DisplacementLocal(inlierCoord, order);
-    
-
-end
-
 function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,nT,Funcs,Grads, p)
     % PPm_use : N×3 point cloud
     % order   : polynomial order
@@ -260,7 +180,7 @@ function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,
             inMaskj = r < p.thresh;
             %w = 0.9*w+0.1*sum(omega(inMaskj))/sum(omega);
             if ~p.sim.freezeW
-                w = 0.50*w + 0.50*sum(omega(inMaskj))/sum(omega);
+                w = 0.800*w + 0.200*sum(omega(inMaskj))/sum(omega);
             end
             if ~p.sim.freezeIter
                 p.maxIter = min(p.maxIter, ...
@@ -470,7 +390,7 @@ function [DispOut, Beta] = DisplacementLocal(coord, Funcs, Grads, p, lambda)
         
     end
     
-    DispOut = centerSum.';
+    DispOut = centerSum.' + coord_center;   % 재센터링 보정: 원래 coord 프레임으로 복원
     Beta = beta_values;
 
 end
