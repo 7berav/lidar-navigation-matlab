@@ -196,22 +196,6 @@ if ~isempty(BetaRAN)
     axis equal
     axis([-2.5 2.5 -2.5 2.5 -2.5 2.5])
 
-    %{
-    figure(15)
-    scatter3(P_total_unbias(:,1),P_total_unbias(:,2),P_total_unbias(:,3),2,[0.5 0.5 0.5],'filled');
-    hold on
-    scatter3(P_inlier_unbias(:,1),P_inlier_unbias(:,2),P_inlier_unbias(:,3),3,'b','filled');
-    
-    fimplicit3(f1_RAN-1,[-20 20 -20 20 -30 30],'FaceColor', [0.95, 0.82, 0.5],'EdgeColor','none','FaceAlpha',0.5, 'MeshDensity', 150);
-    hold off
-    colormap(jet);
-    xlabel ('X (m)')
-    ylabel ('Y (m)')
-    zlabel ('Z (m)')
-    view([1, 1, -0.2]);
-    axis equal
-    axis([-2.5 2.5 -2.5 2.5 -2.5 2.5])
-    %}
 end
 %% 시계열분석
 %figure
@@ -414,21 +398,20 @@ for oi = 1:numel(order_list)
 end
 
 
-%%
-X_use = calculateFourthOrder(PPm_use, Funcs1);   % N × nT
+%% ridge lambda value analysis
+X_use = calculateFourthOrder(PPm_use, Funcs1);  % N_full × nT
+N_full = size(X_use, 1);
 
-% X^TX 고유값 (p×p 연산, 빠름)
 XTX = X_use' * X_use;
-ev  = sort(eig(XTX), 'descend');
+ev  = sort(eig(XTX / N_full), 'descend');  % ← /N_full 추가
 
 fprintf('항 수(p)       : %d\n', numel(ev))
 fprintf('최대 고유값    : %.4e\n', ev(1))
 fprintf('최소 고유값    : %.4e\n', ev(end))
 fprintf('조건수         : %.4e\n', ev(1)/ev(end))
-fprintf('중앙값         : %.4e\n', median(ev))
-fprintf('\n--- λ별 최소 고유값 방향 shrinkage ---\n')
-for lam = [1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 0.1]
-    s_min = ev(end) / (ev(end) + lam);
+
+for lam = [1e-4, 1e-3,  1e-2, 0.1,0.3, 1,3,10,30,100]
+    s_min = ev(end) / (ev(end) + lam);   % 이제 올바른 비교
     s_med = median(ev) / (median(ev) + lam);
     s_max = ev(1)   / (ev(1)   + lam);
     fprintf('λ=%.0e  s_min=%.3f  s_med=%.3f  s_max=%.3f\n', lam, s_min, s_med, s_max)
