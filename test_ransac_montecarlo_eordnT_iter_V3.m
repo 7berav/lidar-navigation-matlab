@@ -23,8 +23,8 @@ ransacPar = struct( ...
   'momentum', 0.66, ...
   'damping', 0.85, ...
   'reg', 1e-6, ...
-  'k', 1.4, ...             % 루프에서 덮어씀
-  'lambda', 1e-2 ...        % ridge penalty (0 = OLS)
+  'k', 1.2, ...             % 루프에서 덮어씀
+  'lambda', 1.4e-2 ...        % ridge penalty (0 = OLS)
 );
 %ransacPar.mc  = struct('on', true, 'saveVarName', 'MC_scores_tmp', 'saveMatFile','', 'time', true, 'localOff', false);
 ransacPar.mc  = struct( ...
@@ -227,7 +227,7 @@ ylabel('maxN (estimated maxIter)');
 
 
 xlim([0 10000]); 
-ylim([0 40000]);
+ylim([0 20000]);
 
 %title('maxIter estimate vs iter');
 grid on;
@@ -280,7 +280,7 @@ ylim([0 1]); grid on;
 %%
 
 order_list  = [ 6 ];                    % ← order 먼저
-w_list_pct  = [10 20 30];
+w_list_pct  = [10 20];
 k_list_pct  = [14];
 Niter       = 10000;
 timelim     = [60];

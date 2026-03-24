@@ -295,27 +295,6 @@ function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,
         end
     end
     
-
-    %{
-    inlierCoord = coord(bestInMask,:);
-    figure(4);
-    scatter3(coord(:,1),coord(:,2),coord(:,3),2,omega(:),'filled');
-    hold on
-    %scatter3(inlierCoord(:,1), inlierCoord(:,2), inlierCoord(:,3), 2, [0.5 0.5 0.5], 'filled');
-    hold off
-    colorbar
-    axis equal;
-
-
-    figure(5);
-    scatter3(coord(:,1),coord(:,2),coord(:,3),2,omegajLoc(:),'filled');
-    hold on
-    %scatter3(inlierCoord(:,1), inlierCoord(:,2), inlierCoord(:,3), 2, 'r', 'filled');
-    hold off
-    colorbar
-    axis equal;
-    drawnow;
-    %}
     if exist('mc','var') && mc.on
         % 유효 행만 남기기 (앞쪽 NaN 허용, 뒤쪽 미사용 row 제거)
         lastIter = find(~isnan(IterLog(:,1)), 1, 'last');
