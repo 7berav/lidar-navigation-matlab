@@ -187,7 +187,7 @@ end
 figBase = 20;
 
 for order = order_list
-    for e = eps_list
+    for e = eps_list(2)
         for k_mult = k_list
 
             idx_all = find( ...
@@ -247,7 +247,7 @@ for order = order_list
 
             % ---- Fig B: 상위 비율 bar chart (P(Sj > alpha_ref * w)) ----
             figure(figBase); clf; figBase = figBase + 1;
-            set(gcf, 'Position', [50 650 720 400]);
+            set(gcf, 'Position', [800 50 720 400]);
 
             nAlpha = numel(alpha_ref);
             nLam   = numel(lambda_list);
