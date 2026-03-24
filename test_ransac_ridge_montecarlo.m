@@ -14,12 +14,12 @@
 
 %% ---- 공통 세팅 ----
 totalN      = 10000;
-eps_list    = [0.10, 0.20, 0.30];
+eps_list    = [0.05, 0.10, 0.20];
 k_list      = [1.4];
 order_list  = [6];
 Niter       = 10000;
-lambda_list = [0, 1e-3, 3e-3, 1e-2];
-conf        = 0.96;
+lambda_list = [0, 1e-3, 3e-3, 1e-2, 3e-2];
+conf        = 0.95;
 
 % w-스케일 threshold용 alpha 범위
 alpha_arr     = linspace(0.40, 1.02, 100);   % thresh = alpha * w_true
