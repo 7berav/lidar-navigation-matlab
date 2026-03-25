@@ -15,12 +15,12 @@
 %% ---- 공통 세팅 ----
 totalN      = 10000;
 
-eps_list    = [0.05, 0.10, 0.20];
+eps_list    = [ 0.10];
 k_list      = [1.4];
 order_list  = [6];
 Niter       = 10000;
-lambda_list = [0, 1e-3, 3e-3, 1e-2, 3e-2];
-%lambda_list  = [0, 1e-3];          
+%lambda_list = [0, 1e-3, 3e-3, 1e-2, 3e-2];
+lambda_list  = [1.4e-3, 2e-3];          
 conf        = 0.95;
 
 % w-스케일 threshold용 alpha 범위
@@ -194,7 +194,7 @@ fprintf('그림 폴더 → %s\n', figDir);
 %% ---- 시각화 ----
 % ★ 여기서 lambda_graph 수정 ★
 % RES에 없는 값은 자동 skip → 포괄적으로 써두면 됨
-lambda_graph = [0, 1e-3, 3e-3, 1e-2, 4e-2];   % 비교할 lambda 후보 전체
+lambda_graph = [0, 1e-3,1.4e-3, 3e-3,];   % 비교할 lambda 후보 전체
 
 % RES에서 실제 존재하는 조합 추출 → 공통세팅 의존 제거
 orders_graph = unique([RES.order]);
@@ -212,9 +212,9 @@ for li = 1:numel(lambda_graph)
 end
 
 figBase = 20;
-%%
+
 for order = orders_graph
-    for e = eps_graph
+    for e = eps_graph(2)
         for k_mult = k_graph
 
             % ── 이 (order, eps, k_mult) 조합에 대해 lambda별로 RES 행 직접 찾기 ──

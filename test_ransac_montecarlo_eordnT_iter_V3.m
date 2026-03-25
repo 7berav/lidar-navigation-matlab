@@ -1,9 +1,9 @@
 %% 공통 세팅
 totalN       = 10000;
-eps_list     = [0.10 0.2 0.3]; %[0.00 0.10 0.20 0.30];
-k_list       = [1.4];            % nT 배수 (저장명에는 round(10*k) 사용)
+eps_list     = [0.10 0.2 ]; %[0.00 0.10 0.20 0.30];
+k_list       = [1.3];            % nT 배수 (저장명에는 round(10*k) 사용)
 order_list   = [6];
-Niter        = 10000;
+Niter        = 2000;
 
 PP11 = generateRandomPointsOnHexagonPrism(10400) + randn(10400,3)*0.007;  % inlier pool
 PP14 = (2*rand(5000,3)-1)*2;                                             % outlier pool (Uniform[-2,2])
@@ -16,15 +16,15 @@ PP13 = generateRandomPointsOnCube(10400) + randn(10400,3)*0.007;  % inlier pool
 ransacPar = struct( ...
   'maxIter', Niter, ...
   'conf', 0.96, ...
-  'thresh', 0.40, ...
+  'thresh', 0.70, ...
   'minInlierRatio', 0.65, ...
-  'updateThresh', 0.65, ...
+  'updateThresh', 0.55, ...
   'locIters', 4, ...
   'momentum', 0.66, ...
   'damping', 0.85, ...
   'reg', 1e-6, ...
   'k', 1.2, ...             % 루프에서 덮어씀
-  'lambda', 1.4e-2 ...        % ridge penalty (0 = OLS)
+  'lambda', 2e-3 ...        % ridge penalty (0 = OLS)
 );
 %ransacPar.mc  = struct('on', true, 'saveVarName', 'MC_scores_tmp', 'saveMatFile','', 'time', true, 'localOff', false);
 ransacPar.mc  = struct( ...
@@ -200,9 +200,9 @@ end
 %% 시계열분석
 %figure
 
-target_eps   = 0.10;
+target_eps   = 0.20;
 %target_k     = 1.2;
-target_order = 4;
+target_order = 6;
 
 idx = T.error == target_eps ;
 
@@ -280,9 +280,9 @@ ylim([0 1]); grid on;
 %%
 
 order_list  = [ 6 ];                    % ← order 먼저
-w_list_pct  = [10 20];
-k_list_pct  = [14];
-Niter       = 10000;
+w_list_pct  = [20];
+k_list_pct  = [13];
+Niter       = 2000;
 timelim     = [60];
 %timelim     = [20];
 outdir = fullfile(pwd, ['test_ridge\enT_246_6_th065']);
