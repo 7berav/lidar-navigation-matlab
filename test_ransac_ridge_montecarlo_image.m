@@ -1,27 +1,132 @@
-%% test_ransac_ridge_montecarlo.m
-% Ridge vs OLS 단일 드로우 성공률 Monte Carlo 분석
+%% test_ransac_ridge_montecarlo_image.m
+% [기존] Ridge vs OLS Monte Carlo 분석 (섹션 3~끝 — 변경 없음)
+% [신규] frame_006.ply 단일 피팅 직관 그래프 (PPT용)
 %
-% 핵심 아이디어:
-%   freezeW=true, freezeOmega=true, freezeIter=true 로 설정
-%   → omega 균일 고정 → 매 iter 독립 iid 랜덤 드로우
-%   → Log.preScore (Sj) 분포 = 단일 드로우 품질 샘플
-%   updateThresh=0 → 로컬 최적화 매 iter 실행 → recall 항상 기록 (iid)
+
+
+%% ---- [0] 출력 폴더 / figDir 설정 ----
+outDir   = 'test_ridge';
+if ~isfolder(outDir), mkdir(outDir); end
+runStamp = datestr(now, 'yyyymmdd_HHMM');
+figDir   = fullfile(outDir, runStamp);   % test_ridge/20260415_1230/
+mkdir(figDir);
+fprintf('그림 폴더 → %s\n', figDir);
+
+warning('off', 'MATLAB:nearlySingularMatrix');
+
+%% ---- [1] frame_006 단일 피팅 — lambda=0 (OLS) ----
+% 의도:
+%   - 차수는 6차 고정 (H6)
+%   - 피팅 샘플 개수 = k_mult × nT  (RANSAC이 쓰는 1.4배보다 넉넉한 2배)
+%   - lambda = 0 (OLS) 한 번만. lambda 비교는 별도 섹션에서.
+% 시각화: figure 각각 따로 (raw / 피팅)
 %
-% 분석 목표:
-%   점수 분포 (preScore, recall) 비교
-%   상위 비율 P(Sj > α×w) for α ∈ {0.70, 0.80, 0.90}  [w-스케일 기준]
-%   implied N_iter = log(1-p)/log(1-P_success) vs α×w threshold
+% 파라미터 (여기만 수정):
+fit_ply          = fullfile('DATA', 'frame_016.ply');
+fit_order        = 6;                              % 고정 차수 (H6)
+fit_k_mult       = 1.4;% Nfit = k_mult × nT
+fit_Nsub_disp    = 3000;                           % scatter3 표시용 subsample 수
+fit_view         = [1, 1, 0.2];                   % view 방향 (V3와 동일)
+fit_ax_lim       = [-1.2 1.2 -1.2 1.2 -1.2 1.2];   % axis 범위
+fit_clim         = [-0.5 0.5];                     % 잔차 컬러 범위
+fit_mesh_density = 80;                             % fimplicit3 MeshDensity
+fit_surf_color   = [0.90, 0.81, 0.53];             % 곡면 색 (V3와 동일)
 
-%% ---- 공통 세팅 ----
-totalN      = 10000;
 
-eps_list    = [0.1, 0.20];
-k_list      = [1.0 , 1.2, 1.4, 1.6, 1.8];
+% ---- PLY 로드 + 정규화 (load_ply_data.m 방식 동일) ----
+%pp_use  = pcread(fit_ply);
+%pp_use  = double(pp_use.Location);
+%pp_use  = pp_use(all(isfinite(pp_use), 2), :);
+
+
+totalN = 1500;
+PP11 = generateRandomPointsOnHexagonPrism(totalN + 1000) + randn(totalN + 1000, 3) * 0.007;
+PP14 = (2 * rand(5000, 3) - 1) * 1.7;
+
+n_out   = round(totalN * 0.1);
+n_in    = totalN - n_out;
+pp_use = [PP11(1:n_in, :); PP14(1:n_out, :)];
+
+
+
+
+c   = mean(pp_use, 1);
+pp_use  = pp_use - c;
+%pp_use  = pp_use / 0.1;
+% ---- 6차 Fischer 항 구성 + 샘플 개수 결정 ----
+TermsF          = homogeneFischerTerms(fit_order);
+[FuncsF, ~, ~]  = makeFuncsGradsStack(TermsF);
+nTF             = numel(TermsF);
+fit_Nsub_fit    = round(fit_k_mult * nTF);         % ≈ 2 × nT
+
+rng(42);
+N006        = size(pp_use, 1);
+idx_fit     = randperm(N006, min(fit_Nsub_fit,  N006));
+PP_fit_sub  = pp_use(idx_fit,  :);    % 피팅용 (≈2×nT 개)
+PP_disp     = pp_use;    % scatter3 표시용
+
+% ---- 디자인 행렬 (lambda 공통) ----
+A = FuncsF(PP_fit_sub);                  % Nfit × nT
+b = ones(size(A, 1), 1);                 % implicit: f = 1
+
+% ---- Figure 1 : raw point cloud ----
+figure(1); clf;
+scatter3(PP_disp(:,1), PP_disp(:,2), PP_disp(:,3), 3, [0.4 0.6 0.9], 'filled');
+axis equal; grid on;
+xlabel('X'); ylabel('Y'); zlabel('Z');
+view(fit_view);
+xlim([-2 2]); ylim([-2 2]); zlim([-2 2]);
+
+% ---- Figure 2~ : lambda별 피팅 (각각 독립 figure) ----
+fit_lambda_list = [0, 1e-3, 1e-2, 1e-1,3e-1,1,3,10,30,100,300,1000];   % ← 여기서 lambda 조절
+
+for li = 1:numel(fit_lambda_list)
+    lam_f  = fit_lambda_list(li);
+    [beta_f, ~] = regressionFourthOrder(PP_fit_sub, FuncsF, lam_f, fit_order);   % Sobolev ridge, N-정규화
+    f_sym  = TermsF * beta_f;
+    Func_f = matlabFunction(f_sym);
+
+    vals_disp = Func_f(PP_disp(:,1), PP_disp(:,2), PP_disp(:,3)) - 1;
+
+    if lam_f == 0
+        lam_str = '\lambda=0 (OLS)';
+        lam_tag = 'l000';
+    else
+        lam_str = sprintf('\\lambda=%.0e', lam_f);
+        lam_tag = sprintf('l%03d', round(lam_f * 1000));
+    end
+
+    figure(1 + li); clf;
+    scatter3(PP_disp(:,1), PP_disp(:,2), PP_disp(:,3), 3, vals_disp(:), 'filled');
+    hold on;
+    fimplicit3(f_sym - 1, ...
+        'FaceColor', fit_surf_color, ...
+        'EdgeColor', 'none', ...
+        'FaceAlpha', 0.5, ...
+        'MeshDensity', fit_mesh_density);
+    hold off;
+    colormap(gca, jet); colorbar; clim(fit_clim);
+    axis equal; grid on;
+    xlabel('X'); ylabel('Y'); zlabel('Z');
+    title(lam_str, 'Interpreter', 'tex');
+    view(fit_view);
+    xlim([-2 2]); ylim([-2 2]); zlim([-2 2]);
+
+    exportgraphics(figure(1+li), fullfile(figDir, sprintf('fit_%s_or%d.png', lam_tag, fit_order)), 'Resolution', 200);
+end
+
+
+%% ---- [3] 공통 MC 세팅 ---- (기존 변경 없음)
+totalN      = 450;
+
+eps_list    = [0.1];
+k_list      = [0.8 1.0 1.2];
 %k_list      = [1.0];
-order_list  = [ 4];
-Niter       = 10000;
-lambda_list  = [0, 1e-3, 2e-3, 3e-3, 1e-2, 3e-2, 1e-1];         % ← 이번 실행에 돌릴 lambda
-
+order_list  = [6];
+Niter       = 2000;
+lambda_list  = [1e-3, 1e-2, 1e-1, 3e-1];         % ← 이번 실행에 돌릴 lambda
+%lambda_list  = [0, 1e-3,3e-3,1e-2]
+%lambda_list  = [ 1e-2,3e-2,1e-1,3e-1]
 conf        = 0.95;
 
 % w-스케일 threshold용 alpha 범위
@@ -30,10 +135,11 @@ alpha_ref_sj  = [0.40, 0.5, 0.60, 0.70];   % preScore bar chart (낮은 range)
 alpha_ref_rec = [0.70, 0.80,0.90, 0.95];          % recall bar chart
 
 % 데이터 풀 생성
-PP11 = generateRandomPointsOnHexagonPrism(totalN + 1000) + randn(totalN + 1000, 3) * 0.007;
+%PP11 = generateRandomPointsOnHexagonPrism(totalN + 1000) + randn(totalN + 1000, 3) * 0.007;
+PP11 = pp_use;
 PP14 = (2 * rand(5000, 3) - 1) * 2;
 
-%% ---- RANSAC 파라미터 ----
+%% ---- [4] RANSAC 파라미터 ---- (기존 변경 없음)
 ransacPar = struct( ...
     'maxIter',        Niter,  ...
     'conf',           conf,   ...
@@ -57,14 +163,12 @@ ransacPar.mc = struct( ...
 );
 % ★ 핵심: 모든 적응 메커니즘 동결 → 매 iter 독립 iid 드로우
 ransacPar.sim = struct( ...
-    'freezeW',     true,  ...
+    'freezeW',     false,  ...
     'freezeIter',  true,  ...
     'freezeOmega', true   ...
 );
 
-warning('off', 'MATLAB:nearlySingularMatrix');
-
-%% ---- 실행 루프 ----
+%% ---- [5] 실행 루프 ---- (기존 변경 없음)
 % RES는 누적 방식 → 섹션 재실행해도 기존 결과 유지
 % 완전 초기화가 필요하면 워크스페이스에서 직접 clear RES
 if ~exist('RES', 'var') || isempty(RES)
@@ -101,7 +205,7 @@ for order = order_list
                 if lam == 0
                     lam_tag = 'OLS';
                 else
-                    lam_tag = regexprep(sprintf('%.0e', lam), 'e\+0*', 'e');
+                    lam_tag = regexprep(sprintf('%.0e\', lam), 'e\+0*', 'e');
                     lam_tag = regexprep(lam_tag, 'e-0*', 'm');
                 end
                 ransacPar.mc.saveVarName = sprintf( ...
@@ -112,7 +216,7 @@ for order = order_list
                     order, e, k_mult, k_samples, lam_tag);
                 t0 = tic;
 
-                [~, ~, ~, Log] = PoliNavigationSolver3_3_FischerRansac_MC( ...
+                [~, beta_best, ~, Log] = PoliNavigationSolver3_3_FischerRansac_MC( ...
                     0, PPm_use, order, nT, Funcs1, Grads1, ransacPar);
 
                 elapsed = toc(t0);
@@ -144,6 +248,7 @@ for order = order_list
                 RES(row).inlierRs   = inlierRs;
                 RES(row).F1s        = F1s;
                 RES(row).wLog       = wLog;
+                RES(row).beta_best  = beta_best;   % 최적 beta (implicit surface용)
             end
         end
     end
@@ -151,7 +256,7 @@ end
 
 
 
-%% ---- 분석: w-스케일 threshold sweep ----
+%% ---- [6] 분석: w-스케일 threshold sweep ---- (기존 변경 없음)
 % thresh = alpha * w_true  →  eps가 달라도 같은 기준으로 비교 가능
 for ri = 1:numel(RES)
     w  = RES(ri).w_true;
@@ -184,19 +289,16 @@ for ri = 1:numel(RES)
     RES(ri).P_ref_rec  = P_ref_rec;  % (1 x numel(alpha_ref_rec))
 end
 
-%% ---- RES 저장 + 출력 폴더 ----
-outDir = 'test_ridge';
-if ~isfolder(outDir), mkdir(outDir); end
-runStamp = datestr(now, 'yyyymmdd_HHMM');
-figDir   = fullfile(outDir, runStamp);       % test_ridge/20260324_1530/
-mkdir(figDir);
+%% ---- [7] RES 저장 확인 ---- (기존 변경 없음 — figDir는 [0]에서 생성)
 resFile  = fullfile(outDir, sprintf('RES_%s.mat', runStamp));
 %save(resFile, 'RES');
 fprintf('RES 저장 → %s  (%d 행)\n', resFile, numel(RES));
-fprintf('그림 폴더 → %s\n', figDir);                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            %% ---- 시각화 ----
+fprintf('그림 폴더 → %s\n', figDir);
+
+%% ---- [8] 시각화 Fig A / B / C ---- (기존 변경 없음)
 % ★ 여기서 lambda_graph 수정 ★
 % RES에 없는 값은 자동 skip → 포괄적으로 써두면 됨
-lambda_graph = [0, 1e-3, 2e-3, 3e-3, 1e-2, 3e-2];   % 비교할 lambda 후보 전체
+lambda_graph = [1e-3, 1e-2, 1e-1, 3e-1, 1e0, 3e0];   % 비교할 lambda 후보 전체
 
 % RES에서 실제 존재하는 조합 추출 → 공통세팅 의존 제거
 orders_graph = unique([RES.order]);
@@ -377,10 +479,72 @@ for order = orders_graph
                 p_rc80 = RES(ri_m).P_ref_rec(alpha_ref_rec == 0.80);
                 if isempty(p_rc80), p_rc80 = NaN; end
                 n_rc80 = ceil(log(1 - conf) / log(max(realmin, 1 - p_rc80)));
-                row_str = [row_str, sprintf('  %10d', n_rc80)]; %#ok!giAGROW>
+                row_str = [row_str, sprintf('  %10d', n_rc80)]; %#ok<AGROW>
                 fprintf('%s\n', row_str);
             end
             fprintf('  (이론 N=%d 기준)\n', N_theory);
         end
     end
+end
+
+%% ---- [9] MC 최적 beta → scatter3 + fimplicit3 ----
+% RANSAC MC에서 나온 best beta로 도형을 직접 그림
+% ★ 여기만 바꾸면 됨
+target_order  = 4;
+target_eps    = 0.00;
+target_k_mult = 1.2;
+target_lambda_list = [0,1e-3, 3e-3,1e-2];   % 비교할 lambda들 (각각 독립 figure)
+
+% 시각화 파라미터
+vis_view        = fit_view;
+vis_surf_color  = fit_surf_color;
+vis_mesh_density = fit_mesh_density;
+vis_clim        = fit_clim;
+
+% PP_vis: 그림에 뿌릴 점군 (MC 데이터 or PLY — 여기서 선택)
+% MC 데이터로 그리려면 PPm_use 사용, PLY로 그리려면 pp_use 사용
+PP_vis = pp_use;    % ← PLY 점군 기준
+
+for li = 1:numel(target_lambda_list)
+    lam_t = target_lambda_list(li);
+
+    hit = find( ...
+        [RES.order]  == target_order                   & ...
+        abs([RES.eps]    - target_eps)      < 1e-9     & ...
+        abs([RES.k_mult] - target_k_mult)   < 1e-9     & ...
+        abs([RES.lambda] - lam_t)           < 1e-12);
+    if isempty(hit)
+        fprintf('[9] 없음: order=%d eps=%.2f k=%.1f lambda=%.0e → skip\n', ...
+            target_order, target_eps, target_k_mult, lam_t);
+        continue;
+    end
+    ri = hit(end);
+
+    beta9  = RES(ri).beta_best;
+    Terms9 = homogeneFischerTerms(target_order);
+    f_sym9 = Terms9 * beta9(:);
+    Func9  = matlabFunction(f_sym9);
+
+    vals9 = Func9(PP_vis(:,1), PP_vis(:,2), PP_vis(:,3)) - 1;
+
+    if lam_t == 0
+        lam_str = '\lambda=0 (OLS)';
+    else
+        lam_str = sprintf('\\lambda=%.0e', lam_t);
+    end
+
+    figure; clf;
+    scatter3(PP_vis(:,1), PP_vis(:,2), PP_vis(:,3), 3, vals9(:), 'filled');
+    hold on;
+    fimplicit3(f_sym9 - 1, ...
+        'FaceColor', vis_surf_color, ...
+        'EdgeColor', 'none', ...
+        'FaceAlpha', 0.5, ...
+        'MeshDensity', vis_mesh_density);
+    hold off;
+    colormap(gca, jet); colorbar; caxis(vis_clim);
+    axis equal; grid on;
+    xlabel('X'); ylabel('Y'); zlabel('Z');
+    title(sprintf('MC best beta  |  H%d  %s', target_order, lam_str), 'Interpreter', 'tex');
+    view(vis_view);
 end

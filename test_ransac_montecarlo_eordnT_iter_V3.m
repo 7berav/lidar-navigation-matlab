@@ -410,19 +410,27 @@ fprintf('최대 고유값    : %.4e\n', ev(1))
 fprintf('최소 고유값    : %.4e\n', ev(end))
 fprintf('조건수         : %.4e\n', ev(1)/ev(end))
 
-for lam = [1e-4, 1e-3,  1e-2, 0.1,0.3, 1,3,10,30,100]
+for lam = [1e-4, 1e-3,  1e-2, 0.1,0.3, 1,3,10,30,100,300,1000,3000]
     s_min = ev(end) / (ev(end) + lam);   % 이제 올바른 비교
     s_med = median(ev) / (median(ev) + lam);
     s_max = ev(1)   / (ev(1)   + lam);
     fprintf('λ=%.0e  s_min=%.3f  s_med=%.3f  s_max=%.3f\n', lam, s_min, s_med, s_max)
 end
 
-% 분포 시각화
+% 분포 시각화 (log scale)
 figure;
 semilogy(ev, 'o-', 'MarkerSize', 4)
 yline(1e-4, '--r', 'λ=1e-4')
 yline(1e-2, '--b', 'λ=1e-2')
 xlabel('고유값 index (큰→작은)')
 ylabel('고유값 (σ²)')
-title('X^TX 고유값 분포')
+title('X^TX 고유값 분포 (log scale)')
+grid on
+
+% 분포 시각화 (linear scale) — elbow 위치 확인용
+figure;
+plot(ev, 'o-', 'MarkerSize', 4)
+xlabel('고유값 index (큰→작은)')
+ylabel('고유값 (σ²)')
+title('X^TX 고유값 분포 (linear scale)')
 grid on

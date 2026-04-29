@@ -13,6 +13,7 @@ function [ResultDisp,  Beta, inlierMask,Log] = ...
         end
     end
     ransacPar.lambda = lambda;   % 하위 함수로 일원화해서 전달
+    ransacPar.order  = order;    % Sobolev ridge 계산용 (regressionFourthOrder 내부에서 사용)
 
     if nargin < 5 || isempty(Funcs)
         syms x y z
@@ -51,12 +52,10 @@ function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,
     %
     % Returns bestBeta, bestDisp and accumulated soft‐weight W (N×1).
 
-    % ── Ridge lambda ──────────────────────────────────────────────
-    if isfield(p, 'lambda')
-        lambda = p.lambda;
-    else
-        lambda = 0;   % OLS (기존 동작과 동일)
-    end
+    % ── Ridge lambda / Sobolev 설정 ───────────────────────────────
+    if isfield(p, 'lambda'),     lambda = p.lambda; else, lambda = 0; end
+    if isfield(p, 'order'),      ord    = p.order;  else, ord    = []; end
+    if isfield(p, 'sobolev_s'),  sv_s   = p.sobolev_s; else, sv_s = 1; end
 
     % ── 초기 설정 ──────────────────────────────────────────────────
     N    = size(coord,1);
@@ -161,7 +160,7 @@ function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,
         idx = randsample(1:N, k, true, omega);%omega 기반 샘플링
         % 2) provisional β  (ridge if lambda > 0)
         coord_unbias = coord-mean(coord(idx,:),1);
-        betaTmp = regressionFourthOrder(coord_unbias(idx,:), Funcs, lambda);
+        betaTmp = regressionFourthOrder(coord_unbias(idx,:), Funcs, lambda, ord, sv_s);
         r    = abs(Funcs([coord_unbias(:,1),coord_unbias(:,2),coord_unbias(:,3)])*betaTmp - 1);
         omegaj   = exp(-r.^2/(2*sigma0^2)); %이 iter의 점간 점수 0~1
         % 4) score = mean(wj)
@@ -316,9 +315,9 @@ end
     
 function [DispOut, Beta] = DisplacementLocal(coord, Funcs, Grads, p, lambda)
     % lambda (optional): ridge penalty passed from RansacWeightedSingleModel
-    if nargin < 5 || isempty(lambda)
-        lambda = 0;
-    end
+    if nargin < 5 || isempty(lambda), lambda = 0; end
+    if isfield(p, 'order'),     ord  = p.order;     else, ord  = []; end
+    if isfield(p, 'sobolev_s'), sv_s = p.sobolev_s; else, sv_s = 1;  end
     if nargin<4 || isempty(p)
         p.locIters  = 7;
         p.damping   = 0.85;
@@ -330,7 +329,7 @@ function [DispOut, Beta] = DisplacementLocal(coord, Funcs, Grads, p, lambda)
 
     coord_center = mean(coord, 1);
     coord_use = coord  - coord_center;
-    [beta_values,error]    = regressionFourthOrder(coord_use, Funcs, lambda);
+    [beta_values,error]    = regressionFourthOrder(coord_use, Funcs, lambda, ord, sv_s);
     error_shift = error;  % 초기 에러 설정
 
 
@@ -363,7 +362,7 @@ function [DispOut, Beta] = DisplacementLocal(coord, Funcs, Grads, p, lambda)
 
         coord_use =  coord_use - center.';
 
-        [beta_values, error_shift] = regressionFourthOrder(coord_use, Funcs, lambda);
+        [beta_values, error_shift] = regressionFourthOrder(coord_use, Funcs, lambda, ord, sv_s);
         
         %0.001s 
         
