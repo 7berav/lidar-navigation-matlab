@@ -125,6 +125,8 @@ for order = order_list
                 inlierRs   = double([Log.inlierR]');
                 F1s        = double([Log.F1]');
                 wLog       = double([Log.w]');
+                mseAlls    = double([Log.mseAll]');
+                mseInliers = double([Log.mseInlier]');
 
                 % ---- 결과 저장 ----
                 row = row + 1;
@@ -144,6 +146,8 @@ for order = order_list
                 RES(row).inlierRs   = inlierRs;
                 RES(row).F1s        = F1s;
                 RES(row).wLog       = wLog;
+                RES(row).mseAlls    = mseAlls;
+                RES(row).mseInliers = mseInliers;
             end
         end
     end
@@ -214,6 +218,12 @@ for li = 1:numel(lambda_graph)
 end
 
 figBase = 20;
+% Fig A y축 통일용 컨테이너 (모든 세팅 그린 후 일괄 적용)
+ax_figA_ps  = {};
+ax_figA_rc  = {};
+ax_figA_mse = {};
+fig_A_handles = {};
+fig_A_tags    = {};
 
 for order = orders_graph
     for e = eps_graph
@@ -255,10 +265,11 @@ for order = orders_graph
             N_theory  = RES(ri_ref).N_theory;
             tag       = sprintf('or%d_e%02d_k%02d', order, round(100*e), round(10*k_mult));
 
-            % ---- Fig A: 점수 분포 (preScore + recall 2-panel) ----
-            figure(figBase); clf; figBase = figBase + 1;
+            % ---- Fig A: 점수 분포 (preScore + recall + mseInlier 3-panel) ----
+            % 저장은 y축 통일 후 일괄 처리 (루프 끝 참고)
+            fig_A = figure(figBase); clf; figBase = figBase + 1;
 
-            subplot(2, 1, 1); hold on; grid on;
+            ax_ps = subplot(3, 1, 1); hold on; grid on;
             for li = 1:nLam
                 ps = RES(ri_per_lam(li)).preScores;
                 histogram(ps(isfinite(ps)), 60, ...
@@ -274,10 +285,11 @@ for order = orders_graph
             title(sprintf('preScore 분포  |  order=%d  ε=%.2f  k=%.1f×%d=%d', ...
                 order, e, k_mult, nT_val, k_val));
             legend('Location', 'northeast', 'FontSize', 7);
-            xlim([0.3 inf]);
+            xlim([0.1 0.4]);
             hold off;
+            ax_figA_ps{end+1} = ax_ps;
 
-            subplot(2, 1, 2); hold on; grid on;
+            ax_rc = subplot(3, 1, 2); hold on; grid on;
             for li = 1:nLam
                 rc = RES(ri_per_lam(li)).recalls;
                 histogram(rc(isfinite(rc)), 60, ...
@@ -290,10 +302,26 @@ for order = orders_graph
             xlabel('recall'); ylabel('count');
             title('recall 분포  |  updateThresh=0 → 전 iter 로컬 opt');
             legend('Location', 'northwest', 'FontSize', 7);
-            xlim([0.3 inf]);
+            xlim([0.3 1]);
             hold off;
-            exportgraphics(gcf, fullfile(figDir, sprintf('ridge_dist_%s.png', tag)), 'Resolution', 200);
-            savefig(gcf, fullfile(figDir, sprintf('ridge_dist_%s.fig', tag)));
+            ax_figA_rc{end+1} = ax_rc;
+
+            ax_mse = subplot(3, 1, 3); hold on; grid on;
+            for li = 1:nLam
+                ms = RES(ri_per_lam(li)).mseInliers;
+                histogram(ms(isfinite(ms)), 60, ...
+                    'FaceAlpha', 0.35, 'EdgeAlpha', 0.15, ...
+                    'FaceColor', lam_colors(li, :), 'DisplayName', lam_labels{li});
+            end
+            xlabel('mseInlier  (mean r^2, 인라이어)'); ylabel('count');
+            title('inlier MSE 분포');
+            legend('Location', 'northeast', 'FontSize', 7);
+            xlim([0.02 0.08]);
+            hold off;
+            ax_figA_mse{end+1} = ax_mse;
+
+            fig_A_handles{end+1} = fig_A;
+            fig_A_tags{end+1}    = tag;
 
             % ---- Fig B: 상위 비율 bar chart ----
             figure(figBase); clf; figBase = figBase + 1;
@@ -382,5 +410,31 @@ for order = orders_graph
             end
             fprintf('  (이론 N=%d 기준)\n', N_theory);
         end
+    end
+end
+
+%% ---- Fig A y축 통일 + 저장 ----
+% 세 패널(preScore / recall / mseInlier) 모두 동일한 ylim 적용
+% MATLAB 자동 패딩 제거: histogram BinCounts 직접 추출 → 실제 피크 * 1.05
+if ~isempty(ax_figA_ps)
+    % 실제 bin 최대값 추출 (auto-padding 없이)
+    histMax = @(ax) max(cellfun(@(h) max([h.BinCounts(:); 0]), ...
+        num2cell(findobj(ax, 'Type', 'histogram'))));
+
+    raw_ps  = max(cellfun(histMax, ax_figA_ps));
+    raw_rc  = max(cellfun(histMax, ax_figA_rc));
+    raw_mse = max(cellfun(histMax, ax_figA_mse));
+
+    % 세 패널 전체를 단일 ylim으로 통일 (5% 여유)
+    ymax_all = ceil(max([raw_ps, raw_rc, raw_mse]) * 1.05);
+
+    for i = 1:numel(fig_A_handles)
+        ylim(ax_figA_ps{i},  [0 ymax_all]);
+        ylim(ax_figA_rc{i},  [0 ymax_all]);
+        ylim(ax_figA_mse{i}, [0 ymax_all]);
+        exportgraphics(fig_A_handles{i}, ...
+            fullfile(figDir, sprintf('ridge_dist_%s.png', fig_A_tags{i})), 'Resolution', 200);
+        savefig(fig_A_handles{i}, ...
+            fullfile(figDir, sprintf('ridge_dist_%s.fig', fig_A_tags{i})));
     end
 end

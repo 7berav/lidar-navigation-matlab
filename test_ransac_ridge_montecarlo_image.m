@@ -24,7 +24,7 @@ warning('off', 'MATLAB:nearlySingularMatrix');
 % 파라미터 (여기만 수정):
 fit_ply          = fullfile('DATA', 'frame_016.ply');
 fit_order        = 6;                              % 고정 차수 (H6)
-fit_k_mult       = 1.4;% Nfit = k_mult × nT
+fit_k_mult       = 0.8;% Nfit = k_mult × nT
 fit_Nsub_disp    = 3000;                           % scatter3 표시용 subsample 수
 fit_view         = [1, 1, 0.2];                   % view 방향 (V3와 동일)
 fit_ax_lim       = [-1.2 1.2 -1.2 1.2 -1.2 1.2];   % axis 범위
@@ -119,12 +119,12 @@ end
 %% ---- [3] 공통 MC 세팅 ---- (기존 변경 없음)
 totalN      = 450;
 
-eps_list    = [0.1];
+eps_list    = [0.1 0.2 0.3];
 k_list      = [0.8 1.0 1.2];
 %k_list      = [1.0];
 order_list  = [6];
 Niter       = 2000;
-lambda_list  = [1e-3, 1e-2, 1e-1, 3e-1];         % ← 이번 실행에 돌릴 lambda
+lambda_list  = [1e-6, 3e-3,1e-2,3e-2,1e-1];         % ← 이번 실행에 돌릴 lambda
 %lambda_list  = [0, 1e-3,3e-3,1e-2]
 %lambda_list  = [ 1e-2,3e-2,1e-1,3e-1]
 conf        = 0.95;
@@ -143,9 +143,9 @@ PP14 = (2 * rand(5000, 3) - 1) * 2;
 ransacPar = struct( ...
     'maxIter',        Niter,  ...
     'conf',           conf,   ...
-    'thresh',         0.45,   ...
+    'thresh',         0.55,   ...
     'minInlierRatio', 0.65,   ...
-    'updateThresh',   0,      ...  % 0 → 매 iter 로컬 opt 실행 → recall 항상 기록
+    'updateThresh',   0.60,      ...  % 0 → 매 iter 로컬 opt 실행 → recall 항상 기록
     'locIters',       4,      ...
     'momentum',       0.66,   ...
     'damping',        0.85,   ...
@@ -165,7 +165,7 @@ ransacPar.mc = struct( ...
 ransacPar.sim = struct( ...
     'freezeW',     false,  ...
     'freezeIter',  true,  ...
-    'freezeOmega', true   ...
+    'freezeOmega', false   ...
 );
 
 %% ---- [5] 실행 루프 ---- (기존 변경 없음)
@@ -205,7 +205,7 @@ for order = order_list
                 if lam == 0
                     lam_tag = 'OLS';
                 else
-                    lam_tag = regexprep(sprintf('%.0e\', lam), 'e\+0*', 'e');
+                    lam_tag = regexprep(sprintf('%.0e', lam), 'e\+0*', 'e');
                     lam_tag = regexprep(lam_tag, 'e-0*', 'm');
                 end
                 ransacPar.mc.saveVarName = sprintf( ...
@@ -226,9 +226,14 @@ for order = order_list
                 preScores  = double([Log.preScore]');
                 postScores = double([Log.postScore]');
                 recalls    = double([Log.recall]');
+                precisions = double([Log.precision]');
                 inlierRs   = double([Log.inlierR]');
                 F1s        = double([Log.F1]');
                 wLog       = double([Log.w]');
+                maxNLog    = double([Log.maxN]');
+                betaNorms  = double([Log.betaNorm]');
+                mseAlls    = double([Log.mseAll]');
+                mseInliers = double([Log.mseInlier]');
 
                 % ---- 결과 저장 ----
                 row = row + 1;
@@ -247,7 +252,12 @@ for order = order_list
                 RES(row).recalls    = recalls;
                 RES(row).inlierRs   = inlierRs;
                 RES(row).F1s        = F1s;
+                RES(row).precisions = precisions;
                 RES(row).wLog       = wLog;
+                RES(row).maxNLog    = maxNLog;
+                RES(row).betaNorms  = betaNorms;
+                RES(row).mseAlls    = mseAlls;
+                RES(row).mseInliers = mseInliers;
                 RES(row).beta_best  = beta_best;   % 최적 beta (implicit surface용)
             end
         end
@@ -298,7 +308,7 @@ fprintf('그림 폴더 → %s\n', figDir);
 %% ---- [8] 시각화 Fig A / B / C ---- (기존 변경 없음)
 % ★ 여기서 lambda_graph 수정 ★
 % RES에 없는 값은 자동 skip → 포괄적으로 써두면 됨
-lambda_graph = [1e-3, 1e-2, 1e-1, 3e-1, 1e0, 3e0];   % 비교할 lambda 후보 전체
+lambda_graph = [1e-6,1e-3, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1, 1e0, 3e0];   % 비교할 lambda 후보 전체
 
 % RES에서 실제 존재하는 조합 추출 → 공통세팅 의존 제거
 orders_graph = unique([RES.order]);
@@ -316,6 +326,12 @@ for li = 1:numel(lambda_graph)
 end
 
 figBase = 20;
+% Fig A y축 통일용 컨테이너 (모든 세팅 그린 후 일괄 적용)
+ax_figA_ps  = {};
+ax_figA_rc  = {};
+ax_figA_mse = {};
+fig_A_handles = {};
+fig_A_tags    = {};
 
 for order = orders_graph
     for e = eps_graph
@@ -357,10 +373,12 @@ for order = orders_graph
             N_theory  = RES(ri_ref).N_theory;
             tag       = sprintf('or%d_e%02d_k%02d', order, round(100*e), round(10*k_mult));
 
-            % ---- Fig A: 점수 분포 (preScore + recall 2-panel) ----
-            figure(figBase); clf; figBase = figBase + 1;
+            % ---- Fig A: 점수 분포 (preScore + recall + mseInlier 3-panel) ----
+            % 저장은 y축 통일 후 일괄 처리 (루프 끝 참고)
+            fig_A = figure(figBase); clf; figBase = figBase + 1;
+            set(fig_A, 'Position', [100 100 700 600]);
 
-            subplot(2, 1, 1); hold on; grid on;
+            ax_ps = subplot(3, 1, 1); hold on; grid on;
             for li = 1:nLam
                 ps = RES(ri_per_lam(li)).preScores;
                 histogram(ps(isfinite(ps)), 60, ...
@@ -376,10 +394,11 @@ for order = orders_graph
             title(sprintf('preScore 분포  |  order=%d  ε=%.2f  k=%.1f×%d=%d', ...
                 order, e, k_mult, nT_val, k_val));
             legend('Location', 'northeast', 'FontSize', 7);
-            xlim([0.3 inf]);
+            xlim([0.1 0.4]);
             hold off;
+            ax_figA_ps{end+1} = ax_ps;
 
-            subplot(2, 1, 2); hold on; grid on;
+            ax_rc = subplot(3, 1, 2); hold on; grid on;
             for li = 1:nLam
                 rc = RES(ri_per_lam(li)).recalls;
                 histogram(rc(isfinite(rc)), 60, ...
@@ -392,10 +411,26 @@ for order = orders_graph
             xlabel('recall'); ylabel('count');
             title('recall 분포  |  updateThresh=0 → 전 iter 로컬 opt');
             legend('Location', 'northwest', 'FontSize', 7);
-            xlim([0.3 inf]);
+            xlim([0.3 1]);
             hold off;
-            exportgraphics(gcf, fullfile(figDir, sprintf('ridge_dist_%s.png', tag)), 'Resolution', 200);
-            savefig(gcf, fullfile(figDir, sprintf('ridge_dist_%s.fig', tag)));
+            ax_figA_rc{end+1} = ax_rc;
+
+            ax_mse = subplot(3, 1, 3); hold on; grid on;
+            for li = 1:nLam
+                ms = RES(ri_per_lam(li)).mseInliers;
+                histogram(ms(isfinite(ms)), 60, ...
+                    'FaceAlpha', 0.35, 'EdgeAlpha', 0.15, ...
+                    'FaceColor', lam_colors(li, :), 'DisplayName', lam_labels{li});
+            end
+            xlabel('mseInlier  (mean r^2, 인라이어)'); ylabel('count');
+            title('inlier MSE 분포');
+            legend('Location', 'northeast', 'FontSize', 7);
+            xlim([0.02 0.08]);
+            hold off;
+            ax_figA_mse{end+1} = ax_mse;
+
+            fig_A_handles{end+1} = fig_A;
+            fig_A_tags{end+1}    = tag;
 
             % ---- Fig B: 상위 비율 bar chart ----
             figure(figBase); clf; figBase = figBase + 1;
@@ -487,13 +522,30 @@ for order = orders_graph
     end
 end
 
+%% ---- [8b] Fig A y축 통일 + 저장 ----
+% 모든 세팅의 Fig A를 그린 뒤, 패널별 최대 ylim을 찾아 일괄 적용 후 저장
+if ~isempty(ax_figA_ps)
+    ymax_ps  = max(cellfun(@(a) a.YLim(2), ax_figA_ps));
+    ymax_rc  = max(cellfun(@(a) a.YLim(2), ax_figA_rc));
+    ymax_mse = max(cellfun(@(a) a.YLim(2), ax_figA_mse));
+    for i = 1:numel(fig_A_handles)
+        ylim(ax_figA_ps{i},  [0 ymax_ps]);
+        ylim(ax_figA_rc{i},  [0 ymax_rc]);
+        ylim(ax_figA_mse{i}, [0 ymax_mse]);
+        exportgraphics(fig_A_handles{i}, ...
+            fullfile(figDir, sprintf('ridge_dist_%s.png', fig_A_tags{i})), 'Resolution', 200);
+        savefig(fig_A_handles{i}, ...
+            fullfile(figDir, sprintf('ridge_dist_%s.fig', fig_A_tags{i})));
+    end
+end
+
 %% ---- [9] MC 최적 beta → scatter3 + fimplicit3 ----
 % RANSAC MC에서 나온 best beta로 도형을 직접 그림
 % ★ 여기만 바꾸면 됨
-target_order  = 4;
-target_eps    = 0.00;
-target_k_mult = 1.2;
-target_lambda_list = [0,1e-3, 3e-3,1e-2];   % 비교할 lambda들 (각각 독립 figure)
+target_order  = 6;
+target_eps    = 0.10;
+target_k_mult = 1.0;
+target_lambda_list = [3e-3, 1e-2,3e-2, 1e-1, 3e-1];   % 비교할 lambda들 (각각 독립 figure)
 
 % 시각화 파라미터
 vis_view        = fit_view;
@@ -547,4 +599,139 @@ for li = 1:numel(target_lambda_list)
     xlabel('X'); ylabel('Y'); zlabel('Z');
     title(sprintf('MC best beta  |  H%d  %s', target_order, lam_str), 'Interpreter', 'tex');
     view(vis_view);
+
+    if lam_t == 0
+        lam_tag9 = 'OLS';
+    else
+        lam_tag9 = regexprep(sprintf('%.0e', lam_t), 'e\+0*', 'e');
+        lam_tag9 = regexprep(lam_tag9, 'e-0*', 'm');
+    end
+    fname9 = sprintf('mcbeta_or%d_e%02d_k%02d_%s.png', ...
+        target_order, round(100*target_eps), round(10*target_k_mult), lam_tag9);
+    exportgraphics(gcf, fullfile(figDir, fname9), 'Resolution', 200);
+end
+
+%% ---- [10] 시계열 분석 — iter별 w / inlierR / betaNorm / mseInlier / recall / F1 ----
+% V3 스타일: lambda별 곡선을 같은 패널에 겹쳐 그림
+% ★ 여기만 바꾸면 됨
+ts_order  = 6;
+ts_eps    = 0.20;
+ts_k_mult = 0.8;
+ts_lambda_list = lambda_graph;   % [8]에서 쓴 lambda 후보 그대로 (없는 건 skip)
+
+% RES에서 해당 조합 찾기
+ts_colors = lines(numel(ts_lambda_list));
+ts_labels = cell(1, numel(ts_lambda_list));
+ts_ri     = zeros(1, numel(ts_lambda_list));
+ts_keep   = false(1, numel(ts_lambda_list));
+for li = 1:numel(ts_lambda_list)
+    if ts_lambda_list(li) == 0
+        ts_labels{li} = 'OLS';
+    else
+        ts_labels{li} = sprintf('\\lambda=%.0e', ts_lambda_list(li));
+    end
+    hit = find( ...
+        [RES.order]  == ts_order                             & ...
+        abs([RES.eps]    - ts_eps)       < 1e-9              & ...
+        abs([RES.k_mult] - ts_k_mult)    < 1e-9              & ...
+        abs([RES.lambda] - ts_lambda_list(li)) < 1e-12);
+    if ~isempty(hit)
+        ts_ri(li)   = hit(end);
+        ts_keep(li) = true;
+    end
+end
+ts_ri    = ts_ri(ts_keep);
+ts_cols  = ts_colors(ts_keep, :);
+ts_labs  = ts_labels(ts_keep);
+nTs      = sum(ts_keep);
+if nTs == 0
+    warning('[10] 해당 조합 없음 — 건너뜀');
+else
+    tag10 = sprintf('or%d_e%02d_k%02d', ts_order, round(100*ts_eps), round(10*ts_k_mult));
+
+    % ---- Fig 10a: w / inlierR / betaNorm / mseInlier (4행) ----
+    figure('Position', [100 100 700 900]); clf;
+    tiledlayout(4, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+
+    nexttile; hold on; grid on;
+    for li = 1:nTs
+        v = RES(ts_ri(li)).wLog;
+        plot(1:numel(v), v, '-', 'Color', ts_cols(li,:), 'LineWidth', 1.2, 'DisplayName', ts_labs{li});
+    end
+    ylabel('w (adaptive)'); ylim([0.4 1]); legend('Location','southeast','FontSize',7);
+    title(sprintf('시계열  |  order=%d  ε=%.2f  k=%.1f', ts_order, ts_eps, ts_k_mult));
+    hold off;
+
+    nexttile; hold on; grid on;
+    for li = 1:nTs
+        v    = RES(ts_ri(li)).inlierRs;
+        iters = 1:numel(v);
+        idx  = ~isnan(v);
+        plot(iters(idx), v(idx), '.', 'Color', ts_cols(li,:), 'MarkerSize', 4, 'DisplayName', ts_labs{li});
+    end
+    ylabel('inlierR'); ylim([0 1]); legend('Location','southeast','FontSize',7);
+    hold off;
+
+    nexttile; hold on; grid on;
+    for li = 1:nTs
+        v    = RES(ts_ri(li)).betaNorms;
+        iters = 1:numel(v);
+        idx  = ~isnan(v) & v > 0;
+        semilogy(iters(idx), v(idx), '.', 'Color', ts_cols(li,:), 'MarkerSize', 4, 'DisplayName', ts_labs{li});
+    end
+    ylabel('||β||² (log)'); legend('Location','northeast','FontSize',7);
+    hold off;
+
+    nexttile; hold on; grid on;
+    for li = 1:nTs
+        v    = RES(ts_ri(li)).mseInliers;
+        iters = 1:numel(v);
+        idx  = ~isnan(v);
+        plot(iters(idx), v(idx), '.', 'Color', ts_cols(li,:), 'MarkerSize', 4, 'DisplayName', ts_labs{li});
+    end
+    ylabel('mseInlier'); legend('Location','northeast','FontSize',7);
+    xlabel('Iteration');
+    hold off;
+
+    exportgraphics(gcf, fullfile(figDir, sprintf('ts_wbeta_%s.png', tag10)), 'Resolution', 200);
+    savefig(gcf,           fullfile(figDir, sprintf('ts_wbeta_%s.fig', tag10)));
+
+    % ---- Fig 10b: precision / recall / F1 (3행) ----
+    figure('Position', [800 100 700 700]); clf;
+    tiledlayout(3, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+
+    nexttile; hold on; grid on;
+    for li = 1:nTs
+        v    = RES(ts_ri(li)).precisions;
+        iters = 1:numel(v);
+        idx  = ~isnan(v);
+        plot(iters(idx), v(idx), '.', 'Color', ts_cols(li,:), 'MarkerSize', 4, 'DisplayName', ts_labs{li});
+    end
+    ylabel('Precision'); ylim([0 1]); legend('Location','southeast','FontSize',7);
+    title(sprintf('정밀도 시계열  |  order=%d  ε=%.2f  k=%.1f', ts_order, ts_eps, ts_k_mult));
+    hold off;
+
+    nexttile; hold on; grid on;
+    for li = 1:nTs
+        v    = RES(ts_ri(li)).recalls;
+        iters = 1:numel(v);
+        idx  = ~isnan(v);
+        plot(iters(idx), v(idx), '.', 'Color', ts_cols(li,:), 'MarkerSize', 4, 'DisplayName', ts_labs{li});
+    end
+    ylabel('Recall'); ylim([0 1]); legend('Location','southeast','FontSize',7);
+    hold off;
+
+    nexttile; hold on; grid on;
+    for li = 1:nTs
+        v    = RES(ts_ri(li)).F1s;
+        iters = 1:numel(v);
+        idx  = ~isnan(v);
+        plot(iters(idx), v(idx), '.', 'Color', ts_cols(li,:), 'MarkerSize', 4, 'DisplayName', ts_labs{li});
+    end
+    ylabel('F1'); ylim([0 1]); legend('Location','southeast','FontSize',7);
+    xlabel('Iteration');
+    hold off;
+
+    exportgraphics(gcf, fullfile(figDir, sprintf('ts_prf_%s.png', tag10)), 'Resolution', 200);
+    savefig(gcf,           fullfile(figDir, sprintf('ts_prf_%s.fig', tag10)));
 end
