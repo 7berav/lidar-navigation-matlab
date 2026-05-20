@@ -134,7 +134,9 @@ function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,
         'TN', {}, ...
         'precision', {}, ...
         'recall', {}, ...
-        'F1', {} ...
+        'F1', {}, ...
+        'mseAll', {}, ...     % mean(r²) 전체 N점
+        'mseInlier', {} ...   % mean(r²) 인라이어만
     );
     for iter = 1:p.maxIter
         raw_tic = tic;
@@ -146,7 +148,9 @@ function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,
         SDF_P50    = NaN;
         disp_for_log = [NaN NaN NaN];
         inlierR_for_log = NaN;
-        betaNorm_for_log = NaN;
+        betaNorm_for_log  = NaN;
+        mseAll_for_log    = NaN;
+        mseInlier_for_log = NaN;
 
         TP_for_log = NaN;
         FP_for_log = NaN;
@@ -240,7 +244,9 @@ function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,
 
             inlierR_for_log     = mean(inMaskLoc);
             betaNorm_for_log    = betaLoc(:).' * betaLoc(:);   % ||beta||^2
-            
+            mseAll_for_log      = mean(rLoc.^2);               % 전체 N점 기준
+            mseInlier_for_log   = mean(rLoc(inMaskLoc).^2);   % 인라이어만
+
             if mc.hasGT 
                 gt = mc.gtMask;   % N×1 logical
         
@@ -277,6 +283,8 @@ function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,
         Log(iter).t_loc_ms  = double(local_ms);
         Log(iter).inlierR   = double(inlierR_for_log);
         Log(iter).betaNorm  = double(betaNorm_for_log);
+        Log(iter).mseAll    = double(mseAll_for_log);
+        Log(iter).mseInlier = double(mseInlier_for_log);
         Log(iter).w        = double(w);
         Log(iter).maxN     = double(2*ceil(log(1-p.conf)/log(max(realmin,min(1-1e-12,1-w^k)))));
         Log(iter).TP        = double(TP_for_log);
