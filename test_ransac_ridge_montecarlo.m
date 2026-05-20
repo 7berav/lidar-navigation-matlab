@@ -15,13 +15,11 @@
 %% ---- 공통 세팅 ----
 totalN      = 10000;
 
-eps_list    = [0.1, 0.20];
-k_list      = [1.0 , 1.2, 1.4, 1.6, 1.8];
-%k_list      = [1.0];
-order_list  = [ 4];
+eps_list    = [0.20];
+k_list      = [1.2, 1.4, 1.6];
+order_list  = [4, 6];
 Niter       = 10000;
-lambda_list  = [0, 1e-3, 2e-3, 3e-3, 1e-2, 3e-2, 1e-1];         % ← 이번 실행에 돌릴 lambda
-
+lambda_list  = [0, 2e-3, 1e-2];         % ← 이번 실행에 돌릴 lambda
 conf        = 0.95;
 
 % w-스케일 threshold용 alpha 범위
@@ -218,15 +216,18 @@ for li = 1:numel(lambda_graph)
 end
 
 figBase = 20;
+<<<<<<< HEAD
 % Fig A y축 통일용 컨테이너 (모든 세팅 그린 후 일괄 적용)
 ax_figA_ps  = {};
 ax_figA_rc  = {};
 ax_figA_mse = {};
 fig_A_handles = {};
 fig_A_tags    = {};
+=======
+>>>>>>> b704f4c259ae0d4967f3226da7e463f8d29dfbbc
 
 for order = orders_graph
-    for e = eps_graph
+    for e = eps_graph(3)
         for k_mult = k_graph
 
             % ── 이 (order, eps, k_mult) 조합에 대해 lambda별로 RES 행 직접 찾기 ──
