@@ -66,3 +66,14 @@ visualize_Cubesat.m
 visualize_hexagonalobstacle.m
 "\354\236\241\355\203\225\353\260\245/"
 잡탕밥/
+
+# Generated output files
+*.fig
+*.png
+
+# Data directory
+DATA/
+
+# Paper experiment outputs / scratch
+test_ridge/
+PAPER_TODO.md
