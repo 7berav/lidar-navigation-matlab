@@ -12,6 +12,9 @@
 %   상위 비율 P(Sj > α×w) for α ∈ {0.70, 0.80, 0.90}  [w-스케일 기준]
 %   implied N_iter = log(1-p)/log(1-P_success) vs α×w threshold
 
+%% ---- 경로 설정 ----
+run(fullfile(fileparts(mfilename('fullpath')), '../../experiments/setup_paths.m'))
+
 %% ---- 공통 세팅 ----
 totalN      = 10000;
 
@@ -19,7 +22,9 @@ eps_list    = [0.20];
 k_list      = [1.2, 1.4, 1.6];
 order_list  = [4, 6];
 Niter       = 10000;
-lambda_list  = [0, 2e-3, 1e-2];         % ← 이번 실행에 돌릴 lambda
+% lambda 그리드: 0(OLS) + 로그 스케일 sweep. Fig D 요약곡선은 전체 사용,
+% Fig A/B/C 분포 그림은 아래 lambda_graph(부분집합)만 표시.
+lambda_list  = [0, 1e-4, 3e-4, 1e-3, 2e-3, 3e-3, 1e-2, 3e-2, 1e-1];
 conf        = 0.95;
 
 % w-스케일 threshold용 alpha 범위
@@ -187,7 +192,8 @@ for ri = 1:numel(RES)
 end
 
 %% ---- RES 저장 + 출력 폴더 ----
-outDir = 'test_ridge';
+% 출력은 항상 repo 루트의 test_ridge/ (스크립트 위치와 무관, .gitignore 처리됨)
+outDir = fullfile(fileparts(mfilename('fullpath')), '..', '..', 'test_ridge');
 if ~isfolder(outDir), mkdir(outDir); end
 runStamp = datestr(now, 'yyyymmdd_HHMM');
 figDir   = fullfile(outDir, runStamp);       % test_ridge/20260324_1530/
@@ -216,15 +222,12 @@ for li = 1:numel(lambda_graph)
 end
 
 figBase = 20;
-<<<<<<< HEAD
 % Fig A y축 통일용 컨테이너 (모든 세팅 그린 후 일괄 적용)
 ax_figA_ps  = {};
 ax_figA_rc  = {};
 ax_figA_mse = {};
 fig_A_handles = {};
 fig_A_tags    = {};
-=======
->>>>>>> b704f4c259ae0d4967f3226da7e463f8d29dfbbc
 
 for order = orders_graph
     for e = eps_graph(3)
@@ -439,3 +442,52 @@ if ~isempty(ax_figA_ps)
             fullfile(figDir, sprintf('ridge_dist_%s.fig', fig_A_tags{i})));
     end
 end
+
+%% ---- Fig D: lambda 요약 곡선 (논문 핵심 그림) ----
+% x축 = lambda (log), y축 = 성능지표. lambda_list 전체를 사용 (분포 그림과 달리 전 lambda).
+% (order, k_mult) 조합마다 라인 1개. eps는 위 시각화와 동일하게 eps_graph(3) 사용.
+%   왼쪽  : P(recall>0.80)   — 높을수록 좋음
+%   오른쪽: implied N_iter   — 낮을수록 좋음  [conf 기준]
+e_sel = eps_graph(min(3, numel(eps_graph)));
+
+figure(figBase); clf; figBase = figBase + 1;
+tiledlayout(1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+ax_succ = nexttile(1); hold(ax_succ, 'on'); grid(ax_succ, 'on');
+ax_nit  = nexttile(2); hold(ax_nit,  'on'); grid(ax_nit,  'on');
+
+for order = orders_graph
+    for k_mult = k_graph
+        sel = find([RES.order] == order & ...
+                   abs([RES.eps]    - e_sel)  < 1e-9 & ...
+                   abs([RES.k_mult] - k_mult) < 1e-9);
+        if isempty(sel), continue; end
+
+        [lam_vals, si] = sort([RES(sel).lambda]);
+        sel = sel(si);
+
+        % 지표 추출: P(recall>0.80) 및 그로부터 implied N_iter
+        p_rc80 = arrayfun(@(ri) RES(ri).P_ref_rec(alpha_ref_rec == 0.80), sel);
+        n_iter = ceil(log(1 - conf) ./ log(max(realmin, 1 - p_rc80)));
+
+        % lambda=0(OLS)은 log축에 못 올리므로 최소 양수의 1/3 위치로 치환 표기
+        lam_plot = lam_vals;
+        pos = lam_vals(lam_vals > 0);
+        if ~isempty(pos), lam_plot(lam_plot == 0) = min(pos) / 3; end
+
+        lbl = sprintf('order=%d, k=%.1f', order, k_mult);
+        plot(ax_succ, lam_plot, p_rc80, '-o', 'LineWidth', 1.6, 'DisplayName', lbl);
+        plot(ax_nit,  lam_plot, n_iter, '-o', 'LineWidth', 1.6, 'DisplayName', lbl);
+    end
+end
+
+set(ax_succ, 'XScale', 'log');
+xlabel(ax_succ, '\lambda  (0=OLS, 좌측 끝)'); ylabel(ax_succ, 'P(recall > 0.80)');
+title(ax_succ, '성공률 vs \lambda'); legend(ax_succ, 'Location', 'best', 'FontSize', 7);
+
+set(ax_nit, 'XScale', 'log', 'YScale', 'log');
+xlabel(ax_nit, '\lambda  (0=OLS, 좌측 끝)'); ylabel(ax_nit, 'Implied N_{iter}');
+title(ax_nit, '필요 반복수 vs \lambda'); legend(ax_nit, 'Location', 'best', 'FontSize', 7);
+
+sgtitle(sprintf('\\lambda 요약 곡선  (\\epsilon=%.2f, conf=%.2f)', e_sel, conf));
+exportgraphics(gcf, fullfile(figDir, sprintf('ridge_lambda_summary_e%02d.png', round(100*e_sel))), 'Resolution', 200);
+savefig(gcf, fullfile(figDir, sprintf('ridge_lambda_summary_e%02d.fig', round(100*e_sel))));
