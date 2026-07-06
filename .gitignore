@@ -66,3 +66,19 @@ visualize_Cubesat.m
 visualize_hexagonalobstacle.m
 "\354\236\241\355\203\225\353\260\245/"
 잡탕밥/
+
+# large generated/data files
+*.svg
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.zip
+*.mat
+*.fig
+*.pdf
+*.stl
+*.glb
+*.xyz
+*.asv
+*.xlsx
