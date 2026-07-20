@@ -82,3 +82,8 @@ visualize_hexagonalobstacle.m
 *.xyz
 *.asv
 *.xlsx
+
+# input/output files
+data/
+*.py
+*.txt
