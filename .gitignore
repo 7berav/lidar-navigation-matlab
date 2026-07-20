@@ -87,3 +87,6 @@ visualize_hexagonalobstacle.m
 data/
 *.py
 *.txt
+
+# local claude config
+.claude/
