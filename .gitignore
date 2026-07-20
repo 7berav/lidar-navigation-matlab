@@ -1,3 +1,4 @@
+# legacy/unused scripts (kept untracked)
 ISS_aftereffect.m
 ISS_euclid.m
 ISS_knn.m
@@ -64,7 +65,7 @@ testcode_homogeneous.m
 testcode_ransac.m
 visualize_Cubesat.m
 visualize_hexagonalobstacle.m
-"\354\236\241\355\203\225\353\260\245/"
+"잡탕밥/"
 잡탕밥/
 
 # large generated/data files
@@ -82,3 +83,14 @@ visualize_hexagonalobstacle.m
 *.xyz
 *.asv
 *.xlsx
+
+# data / experiment output folders
+DATA/
+test_ridge/
+image_cub/
+
+# paper notes
+PAPER_TODO.md
+
+# editor/backup files
+*.m~
