@@ -77,3 +77,6 @@ DATA/
 # Paper experiment outputs / scratch
 test_ridge/
 PAPER_TODO.md
+
+# Root-level fig/png outputs moved here
+IMAGE/
