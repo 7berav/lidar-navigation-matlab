@@ -2,6 +2,14 @@
 
 RANSAC 기반 고차 곡면(Fischer basis, ridge 정규화) 피팅 + LiDAR 포인트클라우드 정합 연구 프로젝트 (논문 브랜치: `paper/2026taes`).
 
+## 실행 환경 (중요)
+
+**MATLAB은 반드시 R2025a로 실행할 것.** 시스템에 R2026a도 설치돼 있지만(`which matlab`이 R2026a를 잡음), 이 프로젝트는 R2025a 기준이며 R2026a에는 필요한 툴박스(Symbolic Math Toolbox 등) 라이선스가 없어 `homogeneFischerTerms`의 `syms`부터 실패한다.
+
+- 실행 파일: `C:\Program Files\MATLAB\R2025a\bin\matlab.exe`
+- 배치 실행 예: `& "C:\Program Files\MATLAB\R2025a\bin\matlab.exe" -batch "run('experiments/sec3_1_basis/lcurve_demo.m')"`
+- 필요 툴박스: Symbolic Math + Statistics.
+
 ## 참고 문서
 
 작업 전에 `docs/` 폴더를 먼저 읽을 것. 논문 섹션(`sec3_1_basis`, `sec3_2_convergence`, `sec3_3_iss`)별 배경, 실험 설계, 목표가 정리되어 있음.

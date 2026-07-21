@@ -46,8 +46,10 @@ PhiGrid = calculateFourthOrder([GX(:), GY(:), GZ(:)], Funcs1);
 %% ---- 스윕 파라미터 ----
 totalN    = 6000;
 noiseSig  = 0.007;
-occ_list  = [0.30, 0.50, 0.70];      % 가려지는(hidden) 비율
+occ_list  = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70];   % 가려지는(hidden) 비율 (촘촘)
 nOcc      = numel(occ_list);
+snapOcc   = [0.10, 0.30, 0.50, 0.70]; % fig3 등위면 스냅샷을 낼 occ (10% 포함)
+panelOcc  = [0.30, 0.50, 0.70];      % fig1/2/5 subplot으로 그릴 occ (fig4만 전체 7단계 사용)
 nViews    = 10;
 k_list    = [1.0, 1.2, 1.4];
 nK        = numel(k_list);
@@ -72,11 +74,12 @@ end
 % 결과 저장: [occ, view, k, lambda]
 MSE = nan(nOcc, nViews, nK, nL);  PEN = nan(nOcc, nViews, nK, nL);
 GCVv= nan(nOcc, nViews, nK, nL);  CDO = nan(nOcc, nViews, nK, nL);
-HDO = nan(nOcc, nViews, nK, nL);
+HDO = nan(nOcc, nViews, nK, nL);  DFm = nan(nOcc, nViews, nK, nL);
 % fig3 스냅샷용: occ=0.50/0.70, view 1, 모든 k와 lambda의 β
 snapBeta = cell(nOcc, nK, nL);
 snapVis  = cell(nOcc, 1);
 snapHid  = cell(nOcc, 1);
+snapCen  = cell(nOcc, nK);   % 스냅 드로우 무게중심(등위면 원프레임 복원용)
 
 Trows = {};   % long-form CSV 누적
 
@@ -92,8 +95,7 @@ for io = 1:nOcc
         Pvis   = Pnoisy(vis, :);
         Phid   = Pnoisy(~vis, :);
 
-        PhiVis  = calculateFourthOrder(Pvis, Funcs1);
-        NvisAll = size(PhiVis, 1);
+        NvisAll = size(Pvis, 1);
 
         for kk = 1:nK
             Nfit = round(k_list(kk) * nT);
@@ -102,34 +104,45 @@ for io = 1:nOcc
             for rr = 1:nDrawScal
                 poolIdx(rr, :) = randperm(NvisAll, Nfit);
             end
-            idxCD = poolIdx(1, :);          % 거리 지표는 rep1 드로우
+            % 드로우별 무게중심 재센터링(솔버 :166 규약). Φ는 λ 무관 → λ 루프 밖에서 캐시.
+            cPool   = zeros(nDrawScal, 3);
+            PhiPool = cell(nDrawScal, 1);
+            for rr = 1:nDrawScal
+                cPool(rr,:) = mean(Pvis(poolIdx(rr,:), :), 1);
+                PhiPool{rr} = calculateFourthOrder( ...
+                    Pvis(poolIdx(rr,:), :) - cPool(rr,:), Funcs1);
+            end
+            % 거리 지표는 rep1 드로우 사용 → PhiPool{1}, cPool(1,:)
+            cCD   = cPool(1, :);            % rep1 드로우 무게중심(등위면 원프레임 복원용)
 
             for i = 1:nL
                 lam = lambdas(i);
                 D   = lam * Nfit * diag(wSob);
 
                 % --- 스칼라 지표: nDrawScal 중앙값 ---
-                mseR = zeros(nDrawScal,1); penR = mseR; gcvR = mseR;
+                mseR = zeros(nDrawScal,1); penR = mseR; gcvR = mseR; dfR = mseR;
                 for rr = 1:nDrawScal
-                    Phi_s = PhiVis(poolIdx(rr,:), :);
+                    Phi_s = PhiPool{rr};
                     A0 = Phi_s.'*Phi_s;  A = A0 + D;
                     b  = A \ (Phi_s.'*ones(Nfit,1));
                     r  = Phi_s*b - 1;
                     mseR(rr) = mean(r.^2);
                     penR(rr) = b.'*(wSob.*b);
                     trH = trace(A \ A0);
+                    dfR(rr)  = trH;                    % df(λ)=tr(H_λ)
                     gcvR(rr) = mseR(rr) / max(1 - trH/Nfit, 1e-12)^2;
                 end
                 MSE(io,iv,kk,i) = median(mseR);
                 PEN(io,iv,kk,i) = median(penR);
                 GCVv(io,iv,kk,i)= median(gcvR);
+                DFm(io,iv,kk,i) = median(dfR);
 
-                % --- 거리 지표: rep1 드로우의 등위면 ---
-                Phi_s = PhiVis(idxCD, :);
+                % --- 거리 지표: rep1 드로우의 등위면 (센터링 프레임 → 원프레임 복원) ---
+                Phi_s = PhiPool{1};
                 bCD = (Phi_s.'*Phi_s + D) \ (Phi_s.'*ones(Nfit,1));
                 F   = reshape(PhiGrid*bCD, size(GX));
                 fv  = isosurface(GX, GY, GZ, F, 1);
-                V   = fv.vertices;
+                V   = fv.vertices + cCD;   % 등위면 정점을 원프레임으로 복원(+cCD)
                 if size(V,1) > 15000, V = V(randperm(size(V,1),15000), :); end
                 if ~isempty(V)
                     % CD와 HD를 방향별 nnDist 1회씩으로 동시 도출
@@ -141,10 +154,11 @@ for io = 1:nOcc
 
                 Trows(end+1,:) = {occ, iv, k_list(kk), lam, ...
                     MSE(io,iv,kk,i), PEN(io,iv,kk,i), GCVv(io,iv,kk,i), ...
-                    CDO(io,iv,kk,i), HDO(io,iv,kk,i)}; %#ok<AGROW>
+                    DFm(io,iv,kk,i), CDO(io,iv,kk,i), HDO(io,iv,kk,i)}; %#ok<AGROW>
 
-                if io >= 2 && iv == 1
+                if any(abs(occ - snapOcc) < 1e-9) && iv == 1
                     snapBeta{io,kk,i} = bCD;
+                    snapCen{io,kk}    = cCD;
                     if isempty(snapVis{io})
                         snapVis{io} = Pvis;
                         snapHid{io} = Phid;
@@ -162,57 +176,69 @@ mCDO = squeeze(mean(CDO, 2, 'omitnan'));  sCDO = squeeze(std(CDO, 0, 2, 'omitnan
 mHDO = squeeze(mean(HDO, 2, 'omitnan'));  sHDO = squeeze(std(HDO, 0, 2, 'omitnan'));
 mMSE = squeeze(mean(MSE, 2, 'omitnan'));  mPEN = squeeze(mean(PEN, 2, 'omitnan'));
 mGCV = squeeze(mean(GCVv,2, 'omitnan'));  % [occ,k,λ]
+mDF  = squeeze(mean(DFm, 2, 'omitnan'));  % [occ,k,λ]
 
 %% ---- CSV ----
 T = cell2table(Trows, 'VariableNames', ...
-    {'occ','view','k','lambda','mse','pen','gcv','cd_occ','hd_occ'});
+    {'occ','view','k','lambda','mse','pen','gcv','df','cd_occ','hd_occ'});
 writetable(T, fullfile(figDir, 'lcurve_demo_results.csv'));
 
 %% ---- 그림 축 준비 ----
 lamPlot = lambdas; lamPlot(1) = 3e-5;   % λ=0 로그축 표시용
 colsK   = lines(nK);
 kMid    = find(k_list == 1.2);
+panelIdx = find(ismember(round(occ_list*100), round(panelOcc*100)));  % fig1/2/5용 occ 인덱스
+nPanel   = numel(panelIdx);
 
 %% ---- Figure 1: L-curve (occ별 subplot, 모든 k, 뷰 평균+스프레드) ----
+% k=1.0(N=nT=28)은 λ=0에서 보간→MSE≈0 이상치라 λ=0 점을 제외하고 그린다.
+% y축 하한은 1e-2로 고정(의미 있는 점 min≈2.8e-2은 모두 유지, 보간 이상치만 배제).
+yTop = max(mMSE(:)) * 1.5;
 fig = figure('Visible','off','Position',[50 50 1400 460]);
-for io = 1:nOcc
-    subplot(1, nOcc, io); hold on; grid on;
+for p = 1:nPanel
+    io = panelIdx(p);
+    subplot(1, nPanel, p); hold on; grid on;
     for kk = 1:nK
+        % k=1.0은 λ=0(보간 이상치) 제외
+        if k_list(kk) == 1.0, useI = 2:nL; else, useI = 1:nL; end
         % 같은 k의 view별 곡선은 옅게, view 평균은 진하게 표시
         for iv = 1:nViews
-            loglog(squeeze(PEN(io,iv,kk,:)), squeeze(MSE(io,iv,kk,:)), '-', ...
+            loglog(squeeze(PEN(io,iv,kk,useI)), squeeze(MSE(io,iv,kk,useI)), '-', ...
                 'Color', [colsK(kk,:) 0.18], 'HandleVisibility','off');
         end
-        penM = squeeze(mPEN(io,kk,:)); mseM = squeeze(mMSE(io,kk,:));
-        iElb = mengerElbow(log(penM.'), log(mseM.'));
+        penM = squeeze(mPEN(io,kk,useI)); mseM = squeeze(mMSE(io,kk,useI));
+        jElb = mengerElbow(log(penM.'), log(mseM.'));
+        iElb = useI(jElb);   % 전체 lambdas 인덱스로 복원
         loglog(penM, mseM, 'o-', 'Color', colsK(kk,:), 'LineWidth', 1.8, ...
             'DisplayName', sprintf('k=%.1f (elbow %.0e)', k_list(kk), lambdas(iElb)));
-        loglog(penM(iElb), mseM(iElb), 's', 'Color', colsK(kk,:), ...
+        loglog(mPEN(io,kk,iElb), mMSE(io,kk,iElb), 's', 'Color', colsK(kk,:), ...
             'MarkerFaceColor', colsK(kk,:), 'MarkerSize', 9, ...
             'LineWidth', 1.5, 'HandleVisibility','off');
         if kk == kMid
             for i = [2 4 6 8]
-                text(penM(i)*1.06, mseM(i), sprintf('%.0e',lambdas(i)), ...
+                text(mPEN(io,kk,i)*1.06, mMSE(io,kk,i), sprintf('%.0e',lambdas(i)), ...
                     'Color', colsK(kk,:), 'FontSize', 7);
             end
         end
     end
     set(gca,'XScale','log','YScale','log');
+    ylim([1e-2, yTop]);
     xlabel('\beta^T D \beta'); ylabel('algebraic MSE');
     title(sprintf('occ=%d%% (vis %d%%)', ...
         round(100*occ_list(io)), round(100*(1-occ_list(io)))));
     legend('Location','best','FontSize',7);
 end
-sgtitle('L-curve (Sobolev) — color: k, thin: 10 paired views, bold: mean, square: elbow');
+sgtitle('L-curve (Sobolev) — color: k, thin: 10 paired views, bold: mean, square: elbow  (k=1.0: λ=0 보간점 제외)');
 saveFigBoth(fig, figDir, 'fig1_lcurve');
 
-%% ---- Figure 2: λ vs CD_occ / HD_occ (2×3, mean±std, k별) ----
+%% ---- Figure 2: λ vs CD_occ / HD_occ (2×nPanel, mean±std, k별) ----
 fig = figure('Visible','off','Position',[40 40 1400 760]);
 metNames = {'CD_{occ}','HD_{occ} (95pct)'};
 mMet = {mCDO, mHDO};  sMet = {sCDO, sHDO};
 for mrow = 1:2
-    for io = 1:nOcc
-        subplot(2, nOcc, (mrow-1)*nOcc + io); hold on; grid on;
+    for p = 1:nPanel
+        io = panelIdx(p);
+        subplot(2, nPanel, (mrow-1)*nPanel + p); hold on; grid on;
         for kk = 1:nK
             mu = squeeze(mMet{mrow}(io,kk,:)); sd = squeeze(sMet{mrow}(io,kk,:));
             fill([lamPlot fliplr(lamPlot)], [(mu-sd).' fliplr((mu+sd).')], ...
@@ -227,23 +253,26 @@ for mrow = 1:2
         if mrow==2, xlabel('\lambda (OLS at 3e-5)'); end
         ylabel(metNames{mrow});
         if mrow==1, title(sprintf('occ=%d%%', round(100*occ_list(io)))); end
-        if io==1 && mrow==1, legend('Location','northwest','FontSize',8); end
+        if p==1 && mrow==1, legend('Location','northwest','FontSize',8); end
     end
 end
 sgtitle('occluded-region error vs \lambda — mean\pmstd over 10 views (star = min)');
 saveFigBoth(fig, figDir, 'fig2_cd_hd');
 
-%% ---- Figure 3: 등위면 스냅샷 6장 (occ=50/70%, 모든 k, view1) ----
+%% ---- Figure 3: 등위면 스냅샷 (snapOcc=30/50/70%, 모든 k, view1) ----
 % 각 그림은 OLS, lambda=1e-3, lambda=1e-1의 3-panel 비교다.
 iShow = [find(lambdas==0), find(lambdas==1e-3), find(lambdas==1e-1)];
-for io = 2:nOcc
+for io = 1:nOcc
+    if ~any(abs(occ_list(io) - snapOcc) < 1e-9), continue; end   % 대표 occ만
     for kk = 1:nK
         fig = figure('Visible','off','Position',[50 50 1400 460]);
         for s = 1:numel(iShow)
             i = iShow(s);
             subplot(1, numel(iShow), s); hold on;
             F = reshape(PhiGrid*snapBeta{io,kk,i}, size(GX));
-            pa = patch(isosurface(GX, GY, GZ, F, 1));
+            fvS = isosurface(GX, GY, GZ, F, 1);
+            fvS.vertices = fvS.vertices + snapCen{io,kk};   % 센터링→원프레임 복원
+            pa = patch(fvS);
             set(pa,'FaceColor',[0.2 0.6 0.9],'EdgeColor','none','FaceAlpha',0.45);
             Pvis = snapVis{io}; Phid = snapHid{io};
             plot3(Pvis(1:4:end,1),Pvis(1:4:end,2),Pvis(1:4:end,3),'.', ...
@@ -285,9 +314,37 @@ mb = mean(benV,2,'omitnan'); sb = std(benV,0,2,'omitnan');
 errorbar(100*occ_list(:), mb(:), sb(:), 'o-', 'LineWidth', 1.8, ...
     'Color', [0 0.3 0.8], 'MarkerFaceColor', [0 0.3 0.8], 'CapSize', 10);
 xlabel('occlusion ratio [%]'); ylabel('ridge benefit:  CD_{occ}(OLS) − min_\lambda CD_{occ}');
-title('Ridge benefit grows with occlusion (Sobolev, k=1.2, mean\pmstd / 10 views)');
-xlim([20 80]);
+title('Ridge benefit vs occlusion (Sobolev, k=1.2, mean\pmstd / 10 views)');
+xlim([5 75]);
 saveFigBoth(fig, figDir, 'fig4_benefit');
+
+%% ---- Figure 5: df vs λ (유효 자유도 진단) ----
+% df(λ)=tr(H_λ). occ별 subplot, k별 라인. L-curve elbow λ에 마커.
+% df는 적합/L-curve를 바꾸지 않는 사후 진단값(변경 없이 새 축만 추가).
+fig = figure('Visible','off','Position',[50 50 1400 460]);
+for p = 1:nPanel
+    io = panelIdx(p);
+    subplot(1, nPanel, p); hold on; grid on;
+    for kk = 1:nK
+        dfM  = squeeze(mDF(io,kk,:));
+        % elbow는 fig1과 동일 규약: k=1.0은 λ=0(보간 이상치) 제외
+        if k_list(kk) == 1.0, useI = 2:nL; else, useI = 1:nL; end
+        penM = squeeze(mPEN(io,kk,useI)); mseM = squeeze(mMSE(io,kk,useI));
+        iElb = useI(mengerElbow(log(penM.'), log(mseM.')));   % 전체 인덱스로 복원
+        plot(lamPlot, dfM, 'o-', 'Color', colsK(kk,:), 'LineWidth', 1.6, ...
+            'DisplayName', sprintf('k=%.1f (elbow %.0e)', k_list(kk), lambdas(iElb)));
+        plot(lamPlot(iElb), dfM(iElb), 's', 'Color', colsK(kk,:), ...
+            'MarkerFaceColor', colsK(kk,:), 'MarkerSize', 9, 'HandleVisibility','off');
+    end
+    set(gca, 'XScale', 'log');
+    ylim([0 30]);                         % 모든 occ 패널에서 df 축 범위 통일
+    xlabel('\lambda (OLS at 3e-5)'); ylabel('df(\lambda) = tr(H_\lambda)');
+    title(sprintf('occ=%d%% (vis %d%%)', ...
+        round(100*occ_list(io)), round(100*(1-occ_list(io)))));
+    legend('Location','best','FontSize',7);
+end
+sgtitle('effective dof  df(\lambda)  vs  \lambda — color: k, square: L-curve elbow');
+saveFigBoth(fig, figDir, 'fig5_df');
 
 %% ---- 콘솔 요약 ----
 fprintf('\n=== summary (Sobolev, k=1.2, mean over %d views) ===\n', nViews);
