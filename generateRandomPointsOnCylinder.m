@@ -1,68 +1,26 @@
 function points = generateRandomPointsOnCylinder(N)
-    points = zeros(0, 3);  % May not always get N points due to rejection
-    while size(points, 1) < N
-        x = 2 * rand() - 1 ;  
-        y = 2 * rand() - 1 ;  
-        
-      
-        z2 = (1-x^2-y^2);
-        
-        
-        if z2 >= 0
-            % Calculate real z values
-            z = 1;
-            z_values = [z, -z];
-            
-            % Store valid (x, y, z) combinations
-            for z_val = z_values
-                if size(points, 1) < N
-                    points(end+1, :) = [x, y, z_val];  % Add new point
-                else
-                    break;
-                end
-            end
-        end
-        y = 2 * rand() - 1 ;  
-        z = 2 * rand() - 1 ;  
-        
-      
-        x2 = (1 - (y)^2 );
-        
-        
-        if x2 >= 0
-            % Calculate real x values
-            x = nthroot(x2, 2);
-            x_values = [x, -x];
-            
-            % Store valid (x, y, z) combinations
-            for x_val = x_values
-                if size(points, 1) < N
-                    points(end+1, :) = [x_val, y, z];  % Add new point
-                else
-                    break;
-                end
-            end
-        end
-        z = 2 * rand() - 1 ;  
-        x = 2 * rand() - 1 ;  
-        
-      
-        y2 = (1 - (x)^2);
-        
-        
-        if y2 >= 0
-            % Calculate real z values
-            y = nthroot(y2, 2);
-            y_values = [y, -y];
-            
-            % Store valid (x, y, z) combinations
-            for y_val = y_values
-                if size(points, 1) < N
-                    points(end+1, :) = [x, y_val, z];  % Add new point
-                else
-                    break;
-                end
-            end
-        end
+%GENERATERANDOMPOINTSONCYLINDER Uniform points on a closed unit cylinder.
+%   Radius = 1, z in [-1,1]. Samples are uniform with respect to surface
+%   area: side area 4*pi (probability 2/3), two caps total area 2*pi
+%   (probability 1/3).
+
+    arguments
+        N (1,1) {mustBeInteger,mustBePositive}
     end
+
+    points = zeros(N,3);
+    isSide = rand(N,1) < 2/3;
+
+    % Curved side: uniform azimuth and height.
+    nSide = nnz(isSide);
+    theta = 2*pi*rand(nSide,1);
+    points(isSide,:) = [cos(theta), sin(theta), 2*rand(nSide,1)-1];
+
+    % End caps: uniform disk area requires radius sqrt(U).
+    capIdx = find(~isSide);
+    nCap = numel(capIdx);
+    theta = 2*pi*rand(nCap,1);
+    radius = sqrt(rand(nCap,1));
+    zSign = 2*(rand(nCap,1) >= 0.5)-1;
+    points(capIdx,:) = [radius.*cos(theta), radius.*sin(theta), zSign];
 end
