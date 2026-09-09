@@ -20,6 +20,7 @@ warning('off', 'MATLAB:singularMatrix');
 if ~exist('shapeName', 'var') || isempty(shapeName), shapeName = 'hexagon'; end
 if ~exist('quickMode', 'var') || isempty(quickMode), quickMode = false; end
 if ~exist('kFocus', 'var') || isempty(kFocus), kFocus = 1.4; end
+if ~exist('order', 'var') || isempty(order), order = 4; end
 shapeName = lower(char(shapeName));
 
 % ---- 출력 폴더: 기존 규약대로 날짜 스탬프 ----
@@ -27,13 +28,12 @@ outDir   = fullfile(fileparts(mfilename('fullpath')), '..', '..', 'test_ridge');
 if ~isfolder(outDir), mkdir(outDir); end
 modeTag  = '';
 if quickMode, modeTag = '_quick'; end
-runStamp = sprintf('%s_%s%s', datestr(now, 'yyyymmdd_HHMM'), shapeName, modeTag);
+runStamp = sprintf('%s_%s_or%d%s', datestr(now, 'yyyymmdd_HHMM'), shapeName, order, modeTag);
 figDir   = fullfile(outDir, runStamp);
 mkdir(figDir);
-fprintf('그림 폴더 → %s\n', figDir);
+fprintf('그림 폴더 → %s  (order=%d)\n', figDir, order);
 
 %% ---- 기저 ----
-order  = 6;
 TermsC = homogeneFischerTerms(order);
 [Funcs1, ~, nT] = makeFuncsGradsStack(TermsC);
 
@@ -70,7 +70,9 @@ nOcc      = numel(occ_list);
 snapOcc   = intersect([0.30, 0.50, 0.70], occ_list, 'stable');
 panelOcc  = intersect([0.30, 0.50, 0.70], occ_list, 'stable');
 nK        = numel(k_list);
-lambdas   = [0, 1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1];
+% CD_all 최소가 3e-1~1e0 부근에 있어(광역 스윕 확인) 1e0, 3e0까지 감싼다.
+% 3e0 초과는 df<3 구-붕괴 점근구간이라 제외.
+lambdas   = [0, 1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1, 1e0, 3e0];
 nL        = numel(lambdas);
 hdPctl    = 95;                      % 로버스트 Hausdorff 백분위수
 nSurfEval = 15000;                   % mesh 삼각형 면적비례 평가점 수
@@ -309,7 +311,7 @@ for p = 1:nPanel
         'MarkerSize', 9, 'HandleVisibility','off');
     set(gca,'XScale','log','YScale','log');
     ylim([1e-2, yTop]);
-    xlabel('\beta^T D \beta'); ylabel('algebraic MSE');
+    xlabel('\beta^T W \beta'); ylabel('algebraic MSE');
     title(sprintf('occ=%d%% (vis %d%%)', ...
         round(100*occ_list(io)), round(100*(1-occ_list(io)))));
     legend('Location','best','FontSize',7);
@@ -367,8 +369,8 @@ for sc = 1:2
 end
 
 %% ---- Figure 3: 등위면 스냅샷 (snapOcc=30/50/70%, 모든 k, view1) ----
-% 각 그림은 OLS, lambda=1e-3, lambda=1e-1의 3-panel 비교다.
-iShow = [find(lambdas==0), find(lambdas==1e-3), find(lambdas==1e-1)];
+% 각 그림은 OLS, lambda=1e-3, lambda=1e0(CD-최적 부근)의 3-panel 비교다.
+iShow = [find(lambdas==0), find(lambdas==1e-2), find(lambdas==1e0)];
 for io = 1:nOcc
     if ~any(abs(occ_list(io) - snapOcc) < 1e-9), continue; end   % 대표 occ만
     for kk = 1:nK
@@ -536,53 +538,10 @@ fprintf('empty hidden fitted surfaces: subset %d/%d, all-visible %d/%d (bbox-dia
 fprintf('saved figures + CSV to %s\n', figDir);
 
 %% ---- local functions ----
-function P = makeShapePoints(shapeName, N)
-    switch lower(shapeName)
-        case {'hexagon','hexagonal_prism'}
-            P = generateRandomPointsOnHexagonPrism(N);
-        case 'cube'
-            P = generateRandomPointsOnCube(N);
-        case 'cylinder'
-            P = generateRandomPointsOnCylinder(N);
-        case 'sphere'
-            P = generateRandomPointsOnSphere(N);
-        case 'ellipsoid'
-            P = generateRandomPointsOnEllipsoid(N,1.2,0.9,0.7);
-        otherwise
-            error('Unknown shapeName: %s', shapeName);
-    end
-end
-
-function P = meshSurfacePoints(beta, PhiGrid, GX, GY, GZ, center, nSamples)
-% implicit f=1을 triangle mesh로 만든 뒤 triangle 면적에 비례해 균일 샘플링.
-    F = reshape(PhiGrid*beta, size(GX));
-    fv = isosurface(GX,GY,GZ,F,1);
-    if isempty(fv.vertices) || isempty(fv.faces)
-        P = zeros(0,3); return;
-    end
-
-    V = fv.vertices + center;
-    A = V(fv.faces(:,1),:); B = V(fv.faces(:,2),:); C = V(fv.faces(:,3),:);
-    area = 0.5*vecnorm(cross(B-A,C-A,2),2,2);
-    valid = isfinite(area) & area > eps;
-    if ~any(valid)
-        P = zeros(0,3); return;
-    end
-    triPool = find(valid);
-    pick = randsample(triPool,nSamples,true,area(valid));
-    u = sqrt(rand(nSamples,1)); v = rand(nSamples,1);
-    P = (1-u).*A(pick,:) + (u.*(1-v)).*B(pick,:) + (u.*v).*C(pick,:);
-end
-
-function [cd, hd] = symmetricMetrics(Pgt, Pest, hdPctl, emptyPenalty)
-    if isempty(Pgt) || isempty(Pest)
-        cd = emptyPenalty; hd = emptyPenalty; return;
-    end
-    d1 = nnDist(Pgt,Pest);
-    d2 = nnDist(Pest,Pgt);
-    cd = 0.5*(mean(d1)+mean(d2));
-    hd = max(prctile(d1,hdPctl),prctile(d2,hdPctl));
-end
+% makeShapePoints / meshSurfacePoints / symmetricMetrics 는 utils/ 로 승격됨.
+% Sec 3.2 가 같은 함수를 호출해야 cd_occ/cd_all 이 동일 정의임이 보장되고,
+% 3.1→3.2 손실분해 사다리 비교가 성립한다. 여기에 다시 로컬로 두지 말 것
+% (MATLAB 로컬 함수가 경로 함수를 가려 조용히 갈라진다).
 
 function saveFigBoth(fig, figDir, name)
     exportgraphics(fig, fullfile(figDir, [name '.png']), 'Resolution', 150);

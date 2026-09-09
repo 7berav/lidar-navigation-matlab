@@ -1,6 +1,8 @@
 %2025 03 31
-function [ResultDisp,  Beta, inlierMask,Log] = ...
+function [ResultDisp,  Beta, inlierMask,Log,omegaFinal] = ...
          PoliNavigationSolver3_3_FischerRansac_MC(isGlobalApproach, PPcoord, order,nT,Funcs,Grads,ransacPar,lambda)
+    % omegaFinal (5번째 출력, 선택): 종료 시 점별 샘플링 가중 omega (N×1).
+    %   시각화(형상 colormap)용. 4-출력 기존 호출은 영향 없음(하위호환).
     % lambda (optional, default 0): ridge L2 penalty passed to regressionFourthOrder
     %   0       => OLS  (기존 동작)
     %   1e-4 ~  => ridge (고차항 과적합 억제)
@@ -25,12 +27,13 @@ function [ResultDisp,  Beta, inlierMask,Log] = ...
     PPm = PPcoord;                               % 원본
     center_shift = mean(PPm,1);
     PPm_shift   = PPm - center_shift;            % 원점 이동
+    omegaFinal  = [];                            % global 분기 안전 초기화
 
     if isGlobalApproach
         [ResultDisp0, Beta, inlierMask] = ...
             RansacDisplacementGlobal(PPm_shift,nT,Funcs, ransacPar); %필요없음. 무시하셈
     else
-        [ResultDisp0, Beta, inlierMask,Log] = ...
+        [ResultDisp0, Beta, inlierMask,Log,omegaFinal] = ...
             RansacWeightedSingleModel(PPm_shift,nT,Funcs,Grads, ransacPar);
     end
     ResultDisp0;
@@ -43,7 +46,7 @@ end
 % ============================================================================
 % RANSAC (Weighted Single Model)
 % ============================================================================
-function [bestDisp, bestBeta, bestInMask,Log] = RansacWeightedSingleModel(coord,nT,Funcs,Grads, p)
+function [bestDisp, bestBeta, bestInMask,Log,omega] = RansacWeightedSingleModel(coord,nT,Funcs,Grads, p)
     % PPm_use : N×3 point cloud
     % order   : polynomial order
     % Funcs   : used terms
