@@ -10,6 +10,7 @@ function [labels, diag_out] = segmentEmbedding(Yembed, W, opts)
 %            .qThr      length: 컷 분위수 / conductance: 후보 분위수 (기본 0.96)
 %            .phiMax    conductance 채택 임계값          (기본 0.05)
 %            .minSize   최소 군집 크기, 미달 라벨=0      (기본 60)
+%            .maxCuts   최대 컷 수 (eigengap K 연동: K-1) (기본 Inf)
 %
 % 출력
 %   labels   : N x 1 uint32 (0 = 버려진 점)
@@ -29,6 +30,7 @@ method  = getfield_def(opts, 'cutMethod', 'conductance');
 qThr    = getfield_def(opts, 'qThr', 0.96);
 phiMax  = getfield_def(opts, 'phiMax', 0.05);
 minSize = getfield_def(opts, 'minSize', 60);
+maxCuts = getfield_def(opts, 'maxCuts', Inf);
 
 N = size(Yembed,1);
 
@@ -75,8 +77,15 @@ removed = false(size(E_global,1),1);
 dW = full(sum(W,2));            % 원 그래프 차수 (conductance 볼륨용)
 volTotal = sum(dW);
 
+% conductance용 간선 리스트 전계산:
+%   cut(S,S~) = vol(S) - 2*assoc(S,S) - sum(diag W in S)
+% 항등식으로 계산하면 W(Smask,~Smask) 부분행렬 추출 없이 O(nnz) 논리연산만 필요
+[euW, evW, ewW] = find(triu(W, 1));
+dgW = full(diag(W));
+
 cutEdges = zeros(0,4);
 for c = 1:numel(candIdx)
+    if size(cutEdges,1) >= maxCuts, break; end
     e = candIdx(c);
     u = E_global(e,1); v = E_global(e,2);
 
@@ -89,8 +98,8 @@ for c = 1:numel(candIdx)
             Smask = subtreeMask(adjF, removed, u, e, N);
             volS  = sum(dW(Smask));
             volSc = volTotal - volS;
-            % cut(S, S~) = vol(S) - 2*assoc(S,S) ... 대신 직접 계산
-            cutVal = sum(sum(W(Smask, ~Smask)));
+            assocS = sum(ewW(Smask(euW) & Smask(evW)));
+            cutVal = volS - 2*assocS - sum(dgW(Smask));
             phi = cutVal / max(min(volS, volSc), eps);
             accept = (phi <= phiMax);
         otherwise
@@ -129,7 +138,7 @@ stack = src;
 Smask(src) = true;
 while ~isempty(stack)
     u = stack(end); stack(end) = [];
-    [~, nbrs, eids] = find(adjF(u,:));
+    [nbrs, ~, eids] = find(adjF(:,u));   % 대칭이므로 열 인덱싱(CSC에서 빠름)
     for t = 1:numel(nbrs)
         v = nbrs(t); eid = eids(t);
         if eid == eSkip || removed(eid) || Smask(v), continue; end

@@ -50,13 +50,19 @@ fprintf('lambda_2 = %.3e  →  Cheeger 상한 sqrt(2*l2) = %.3e\n', ...
         lam2, sqrt(2*lam2));
 
 %% 3) 분할: length(현행) vs conductance(개선) 비교
-nSkip = 1;                                % 상수 고유벡터 건너뛰기
-nDim  = 15;                               % 사용할 임베딩 차원 수
-Yuse  = Y(:, nSkip+1 : nSkip+nDim);
+% eigengap으로 K 자동 추정: K* = argmax_k (lambda_{k+1}-lambda_k)
+[Kgap, gapsAll] = selectEigenGap(lambda, struct('kMin',2, 'kMax',30));
+fprintf('eigengap 추정 K* = %d (gap = %.3e)\n', Kgap, gapsAll(Kgap));
 
-sOptsL = struct('ky',40, 'cutMethod','length',      'qThr',0.96, 'minSize',60);
+nSkip = 1;                                % 상수 고유벡터 건너뛰기
+nDim  = max(Kgap - nSkip, 2);             % u_2..u_{K*} 사용 (수동 덮어쓰기 가능)
+Yuse  = Y(:, nSkip+1 : nSkip+nDim);
+maxCuts = max(Kgap - 1, 1);               % K* 군집이면 컷은 최대 K*-1개
+
+sOptsL = struct('ky',40, 'cutMethod','length',      'qThr',0.96, ...
+                'minSize',60, 'maxCuts',maxCuts);
 sOptsC = struct('ky',40, 'cutMethod','conductance', 'qThr',0.90, ...
-                'phiMax',0.05, 'minSize',60);
+                'phiMax',0.05, 'minSize',60, 'maxCuts',maxCuts);
 
 [labL, dgL] = segmentEmbedding(Yuse, W, sOptsL);
 [labC, dgC] = segmentEmbedding(Yuse, W, sOptsC);
