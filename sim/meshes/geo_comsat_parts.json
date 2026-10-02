@@ -1,0 +1,52 @@
+{
+  "target": "geo_comsat",
+  "unit": "m",
+  "parts": [
+    {
+      "id": 1,
+      "name": "bus",
+      "n_faces": 12,
+      "area": 34.0
+    },
+    {
+      "id": 2,
+      "name": "wing_px",
+      "n_faces": 60,
+      "area": 36.13218285412303
+    },
+    {
+      "id": 3,
+      "name": "wing_nx",
+      "n_faces": 60,
+      "area": 36.13218285412303
+    },
+    {
+      "id": 4,
+      "name": "reflector_py",
+      "n_faces": 2928,
+      "area": 8.49215597598813
+    },
+    {
+      "id": 5,
+      "name": "reflector_ny",
+      "n_faces": 2928,
+      "area": 8.49215597598813
+    }
+  ],
+  "center": [
+    0.0,
+    0.0,
+    0.02298982945914585
+  ],
+  "R": 10.26164368690848,
+  "params": {
+    "bus": [
+      2.0,
+      2.2,
+      3.0
+    ],
+    "wing_span": 8.0,
+    "wing_width": 2.2,
+    "dish_r": 1.1
+  }
+}

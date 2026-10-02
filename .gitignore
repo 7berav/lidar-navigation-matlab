@@ -85,8 +85,21 @@ visualize_hexagonalobstacle.m
 
 # input/output files
 data/
+out_ISS/
+out_cutting_ISS/
+out_cutting_occlusion/
+out_cutting_LB/
+out_cutting_normal/
 *.py
 *.txt
 
 # local claude config
 .claude/
+
+# simulator (Python): 코드는 추적, 환경/출력은 제외
+!sim/*.py
+.venv/
+__pycache__/
+out_cutting_sim/
+
+out_cutting_simcut/

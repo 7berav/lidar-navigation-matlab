@@ -1,0 +1,43 @@
+{
+  "target": "soyuz",
+  "unit": "m",
+  "parts": [
+    {
+      "id": 1,
+      "name": "service_module",
+      "n_faces": 192,
+      "area": 27.459682882270265
+    },
+    {
+      "id": 2,
+      "name": "descent_module",
+      "n_faces": 192,
+      "area": 16.625200867439066
+    },
+    {
+      "id": 3,
+      "name": "orbital_module",
+      "n_faces": 1472,
+      "area": 18.00043481946956
+    },
+    {
+      "id": 4,
+      "name": "wing_px",
+      "n_faces": 12,
+      "area": 8.506
+    },
+    {
+      "id": 5,
+      "name": "wing_nx",
+      "n_faces": 12,
+      "area": 8.506
+    }
+  ],
+  "center": [
+    0.0,
+    0.0,
+    3.625
+  ],
+  "R": 6.053581584483685,
+  "params": {}
+}

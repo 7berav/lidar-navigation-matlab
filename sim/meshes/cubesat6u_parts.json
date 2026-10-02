@@ -1,0 +1,43 @@
+{
+  "target": "cubesat6u",
+  "unit": "m",
+  "parts": [
+    {
+      "id": 1,
+      "name": "bus",
+      "n_faces": 12,
+      "area": 0.28411159999999996
+    },
+    {
+      "id": 2,
+      "name": "wing_px",
+      "n_faces": 12,
+      "area": 0.3031000000000001
+    },
+    {
+      "id": 3,
+      "name": "wing_nx",
+      "n_faces": 12,
+      "area": 0.3031000000000001
+    }
+  ],
+  "center": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "R": 0.5827448176517745,
+  "params": {
+    "bus": [
+      0.2263,
+      0.1,
+      0.366
+    ],
+    "wing_len": 0.44,
+    "wing_width": 0.34,
+    "wing_thick": 0.0025,
+    "hinge_gap": 0.002,
+    "wing_angle_deg": 0.0,
+    "wing_y": 1.0
+  }
+}

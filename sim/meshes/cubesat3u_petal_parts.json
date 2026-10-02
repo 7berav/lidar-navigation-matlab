@@ -1,0 +1,51 @@
+{
+  "target": "cubesat3u_petal",
+  "unit": "m",
+  "parts": [
+    {
+      "id": 1,
+      "name": "bus",
+      "n_faces": 12,
+      "area": 0.15600000000000003
+    },
+    {
+      "id": 2,
+      "name": "petal_px",
+      "n_faces": 12,
+      "area": 0.058131999999999996
+    },
+    {
+      "id": 3,
+      "name": "petal_nx",
+      "n_faces": 12,
+      "area": 0.058131999999999996
+    },
+    {
+      "id": 4,
+      "name": "petal_py",
+      "n_faces": 12,
+      "area": 0.058131999999999996
+    },
+    {
+      "id": 5,
+      "name": "petal_ny",
+      "n_faces": 12,
+      "area": 0.058131999999999996
+    }
+  ],
+  "center": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "R": 0.4288907203472698,
+  "params": {
+    "bus": [
+      0.1,
+      0.1,
+      0.34
+    ],
+    "petal_len": 0.34,
+    "petal_width": 0.083
+  }
+}

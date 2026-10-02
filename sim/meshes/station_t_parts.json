@@ -1,0 +1,73 @@
+{
+  "target": "station_t",
+  "unit": "m",
+  "parts": [
+    {
+      "id": 1,
+      "name": "core",
+      "n_faces": 576,
+      "area": 220.9668775067969
+    },
+    {
+      "id": 2,
+      "name": "node",
+      "n_faces": 1280,
+      "area": 28.13960865143234
+    },
+    {
+      "id": 3,
+      "name": "lab_px",
+      "n_faces": 192,
+      "area": 199.03830545549948
+    },
+    {
+      "id": 4,
+      "name": "wing_lab_px_a",
+      "n_faces": 60,
+      "area": 123.1326228435536
+    },
+    {
+      "id": 5,
+      "name": "wing_lab_px_b",
+      "n_faces": 12,
+      "area": 121.35999999999999
+    },
+    {
+      "id": 6,
+      "name": "lab_nx",
+      "n_faces": 192,
+      "area": 199.03830545549948
+    },
+    {
+      "id": 7,
+      "name": "wing_lab_nx_a",
+      "n_faces": 60,
+      "area": 123.1326228435536
+    },
+    {
+      "id": 8,
+      "name": "wing_lab_nx_b",
+      "n_faces": 12,
+      "area": 121.35999999999999
+    },
+    {
+      "id": 9,
+      "name": "wing_core_px",
+      "n_faces": 60,
+      "area": 55.44563930993716
+    },
+    {
+      "id": 10,
+      "name": "wing_core_nx",
+      "n_faces": 60,
+      "area": 55.44563930993716
+    }
+  ],
+  "center": [
+    0.0,
+    0.0,
+    -0.75
+  ],
+  "R": 22.352022279874365,
+  "params": {}
+}
